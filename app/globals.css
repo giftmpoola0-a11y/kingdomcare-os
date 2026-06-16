@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #FAF9F7;
+  --foreground: #0F172A;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Premium background grid ─────────────────────────────────── */
+.kc-bg-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+}
+
+/* ─── Keyframes ───────────────────────────────────────────────── */
+@keyframes kc-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes kc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes kc-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes kc-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+/* ─── Animation utility classes ───────────────────────────────── */
+.anim-fade-up    { animation: kc-fade-up    0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-fade-in    { animation: kc-fade-in    0.3s  ease-out both;                       }
+.anim-slide-down { animation: kc-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-scale-in   { animation: kc-scale-in   0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ─── Stagger delays ──────────────────────────────────────────── */
+.anim-delay-50  { animation-delay:  50ms; }
+.anim-delay-75  { animation-delay:  75ms; }
+.anim-delay-100 { animation-delay: 100ms; }
+.anim-delay-150 { animation-delay: 150ms; }
+.anim-delay-200 { animation-delay: 200ms; }
+.anim-delay-250 { animation-delay: 250ms; }
+.anim-delay-300 { animation-delay: 300ms; }
+.anim-delay-400 { animation-delay: 400ms; }
+.anim-delay-500 { animation-delay: 500ms; }
+
+/* ─── Kiosk task card — hover lift ───────────────────────────── */
+.kc-task-card {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.15s ease;
+}
+.kc-task-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.kc-task-card:active {
+  transform: translateY(-1px) scale(0.995);
+}
+
+/* ─── Kiosk select card — selectable option card ─────────────── */
+.kc-select-card {
+  transition:
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.15s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.kc-select-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+.kc-select-card:active {
+  transform: scale(0.97);
+}
+
+/* ─── Quick chip press ────────────────────────────────────────── */
+.kc-chip:active {
+  transform: scale(0.92);
+}
+
+/* ─── Prefers-reduced-motion ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up,
+  .anim-fade-in,
+  .anim-slide-down,
+  .anim-scale-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .kc-task-card,
+  .kc-select-card {
+    transition: border-color 0.12s ease;
+  }
+  .kc-task-card:hover,
+  .kc-select-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .kc-chip:active {
+    transform: none;
+  }
 }
