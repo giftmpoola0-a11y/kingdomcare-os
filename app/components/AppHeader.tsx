@@ -1,7 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
+import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 /* ── Inline SVG icons ────────────────────────────────────────── */
 
@@ -89,6 +92,71 @@ const NAV_LINKS = [
 
 export default function AppHeader({ className = '' }: { subtitle?: string; className?: string }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadSession() {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (mounted) {
+          setUser(session?.user ?? null)
+          setAuthReady(true)
+        }
+
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+          setUser(nextSession?.user ?? null)
+          setAuthReady(true)
+        })
+
+        return () => subscription.unsubscribe()
+      } catch {
+        if (mounted) {
+          setUser(null)
+          setAuthReady(true)
+        }
+      }
+
+      return undefined
+    }
+
+    let cleanup: (() => void) | undefined
+
+    loadSession().then((unsubscribe) => {
+      cleanup = unsubscribe
+    })
+
+    return () => {
+      mounted = false
+      cleanup?.()
+    }
+  }, [])
+
+  async function handleLogout() {
+    setLoggingOut(true)
+
+    try {
+      const supabase = getSupabaseBrowserClient()
+      await supabase.auth.signOut()
+      setUser(null)
+      router.replace('/auth/sign-in')
+      router.refresh()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  const userEmail = getCleanEmail(user?.email)
 
   return (
     <header className={`sticky top-0 z-40 border-b border-white/8 bg-slate-900 ${className}`.trim()}>
@@ -133,7 +201,41 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
             )
           })}
         </nav>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {authReady && user ? (
+            <>
+              <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300 md:inline-flex">
+                {userEmail ?? 'Signed in'}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loggingOut ? 'Logging Out...' : 'Logout'}
+              </button>
+            </>
+          ) : authReady ? (
+            <Link
+              href="/auth/sign-in"
+              className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Sign In
+            </Link>
+          ) : (
+            <span className="hidden text-xs text-slate-400 sm:inline">Checking session...</span>
+          )}
+        </div>
       </div>
     </header>
   )
+}
+
+function getCleanEmail(email?: string | null) {
+  if (!email) return null
+  if (!email.includes('@')) return null
+  if (email.length > 80) return null
+  return email
 }
