@@ -55,7 +55,9 @@ body {
 .anim-delay-200 { animation-delay: 200ms; }
 .anim-delay-250 { animation-delay: 250ms; }
 .anim-delay-300 { animation-delay: 300ms; }
+.anim-delay-350 { animation-delay: 350ms; }
 .anim-delay-400 { animation-delay: 400ms; }
+.anim-delay-450 { animation-delay: 450ms; }
 .anim-delay-500 { animation-delay: 500ms; }
 
 /* ─── Kiosk task card — hover lift ───────────────────────────── */

@@ -8,6 +8,12 @@ import StatusBadge from '@/app/components/ui/StatusBadge'
 import QuickNoteChips from '@/app/components/QuickNoteChips'
 import { deleteMedication, loadMedications, saveMedication } from '@/app/lib/medications'
 import type { MedicationForm, SavedMedicationEntry } from '@/app/lib/medicationTypes'
+import {
+  getMedicationScheduledDateTime,
+  isMedicationDue,
+  isMedicationOverdue,
+  REMINDER_ACTIVE_STATUSES,
+} from '@/app/lib/medicationReminders'
 import { loadResidents } from '@/app/lib/residents'
 import type { DemoResident } from '@/app/lib/reportTypes'
 
@@ -147,10 +153,22 @@ export default function MedicationsPage() {
   const [residents, setResidents] = useState<DemoResident[]>([])
   const [entries, setEntries]     = useState<SavedMedicationEntry[]>([])
   const [errors, setErrors]       = useState<FormErrors>({})
+  const [now, setNow]             = useState(() => new Date())
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>('default')
 
   useEffect(() => {
     setResidents(loadResidents())
     setEntries(loadMedications())
+    if (typeof Notification === 'undefined') {
+      setNotifPermission('unsupported')
+    } else {
+      setNotifPermission(Notification.permission)
+    }
+    const interval = setInterval(() => {
+      setNow(new Date())
+      setEntries(loadMedications())
+    }, 30_000)
+    return () => clearInterval(interval)
   }, [])
 
   const activeResidents = residents.filter((r) => r.status !== 'archived')

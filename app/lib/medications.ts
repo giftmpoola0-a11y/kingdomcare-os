@@ -93,7 +93,23 @@ function normalizeMedication(entry: LegacyMedicationEntry): SavedMedicationEntry
     status,
     notes: normalizeString(entry.notes),
     whoNotified: normalizeString(entry.whoNotified),
+    ...(typeof entry.reminderNotifiedAt === 'string' ? { reminderNotifiedAt: entry.reminderNotifiedAt } : {}),
+    ...(typeof entry.acknowledgedAt === 'string' ? { acknowledgedAt: entry.acknowledgedAt } : {}),
   }
+}
+
+export function updateMedicationStatus(id: string, status: string): void {
+  const entries = loadMedications()
+  writeMedications(entries.map((entry) => (entry.id === id ? { ...entry, status } : entry)))
+}
+
+export function markReminderNotified(id: string): void {
+  const entries = loadMedications()
+  writeMedications(
+    entries.map((entry) =>
+      entry.id === id ? { ...entry, reminderNotifiedAt: new Date().toISOString() } : entry
+    )
+  )
 }
 
 function writeMedications(items: SavedMedicationEntry[]) {

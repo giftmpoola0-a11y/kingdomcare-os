@@ -10,6 +10,8 @@ export interface SavedMedicationEntry {
   status: string
   notes: string
   whoNotified: string
+  reminderNotifiedAt?: string
+  acknowledgedAt?: string
 }
 
 export interface MedicationForm {
