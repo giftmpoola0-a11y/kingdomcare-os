@@ -2,11 +2,9 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import MedicationReminderWatcher from '@/app/components/MedicationReminderWatcher'
+import { cn } from "@/lib/utils";
 
-const geistSans = Geist({
-  variable: '--font-sans',
-  subsets: ['latin'],
-})
+const geist = Geist({subsets:['latin'],variable:'--font-sans'})
 
 const geistMono = Geist_Mono({
   variable: '--font-mono',
@@ -24,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={cn("h-full", "antialiased", geistMono.variable, "font-sans", geist.variable)}>
       <body className="min-h-full">
         {children}
         <MedicationReminderWatcher />
