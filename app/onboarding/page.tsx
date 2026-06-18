@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react'
 import PageShell from '@/app/components/ui/PageShell'
 import PageHeader from '@/app/components/ui/PageHeader'
 import SectionCard from '@/app/components/ui/SectionCard'
+import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
-import { getMyMembership } from '@/app/lib/supabase/careHomes'
 import { createCareHomeAction } from './actions'
 
 type PageStatus = 'loading' | 'needs-form' | 'already-connected'
@@ -31,21 +31,17 @@ export default function OnboardingPage() {
     async function checkAuth() {
       try {
         const supabase = getSupabaseBrowserClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        const access = await getCurrentUserAccess(supabase)
 
         if (!active) return
 
-        if (!user) {
+        if (!access.isSignedIn) {
           router.replace('/auth/sign-in?next=/onboarding')
           return
         }
 
-        const membership = await getMyMembership(supabase)
-
         if (!active) return
-        setStatus(membership ? 'already-connected' : 'needs-form')
+        setStatus(access.hasCareHome ? 'already-connected' : 'needs-form')
       } catch {
         // Supabase not configured or network error — show the form and let
         // the submit step surface the real error to the user.

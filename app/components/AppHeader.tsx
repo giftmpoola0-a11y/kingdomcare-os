@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { getCurrentUserAccess, type MembershipRole } from '@/app/lib/supabase/access'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 /* ── Inline SVG icons ────────────────────────────────────────── */
@@ -88,6 +89,17 @@ function IcAccount() {
   )
 }
 
+function IcTeam() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="5" cy="5" r="2"/>
+      <circle cx="10.5" cy="4.5" r="1.5"/>
+      <path d="M1.75 12.5c0-2.347 2.015-4.25 4.5-4.25s4.5 1.903 4.5 4.25"/>
+      <path d="M9.5 12.5c0-1.625 1.288-2.986 3-3.227"/>
+    </svg>
+  )
+}
+
 /* ── Nav link definitions ────────────────────────────────────── */
 
 const NAV_LINKS = [
@@ -98,6 +110,7 @@ const NAV_LINKS = [
   { href: '/incidents',  label: 'Incidents',  icon: <IcWarning />   },
   { href: '/medications',label: 'Medications',icon: <IcPill />      },
   { href: '/tasks',      label: 'Tasks',      icon: <IcChecklist /> },
+  { href: '/staff',      label: 'Staff',      icon: <IcTeam />      },
   { href: '/account',    label: 'Account',    icon: <IcAccount />   },
 ]
 
@@ -105,6 +118,7 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
+  const [role, setRole] = useState<MembershipRole | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -114,26 +128,46 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
     async function loadSession() {
       try {
         const supabase = getSupabaseBrowserClient()
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        const access = await getCurrentUserAccess(supabase)
 
         if (mounted) {
-          setUser(session?.user ?? null)
+          setUser(access.user)
+          setRole(access.role)
           setAuthReady(true)
         }
 
         const {
           data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-          setUser(nextSession?.user ?? null)
-          setAuthReady(true)
+          if (!mounted) return
+
+          if (!nextSession?.user) {
+            setUser(null)
+            setRole(null)
+            setAuthReady(true)
+            return
+          }
+
+          void getCurrentUserAccess(supabase, { user: nextSession.user })
+            .then((nextAccess) => {
+              if (!mounted) return
+              setUser(nextAccess.user)
+              setRole(nextAccess.role)
+              setAuthReady(true)
+            })
+            .catch(() => {
+              if (!mounted) return
+              setUser(nextSession.user)
+              setRole(null)
+              setAuthReady(true)
+            })
         })
 
         return () => subscription.unsubscribe()
       } catch {
         if (mounted) {
           setUser(null)
+          setRole(null)
           setAuthReady(true)
         }
       }
@@ -160,6 +194,7 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
       const supabase = getSupabaseBrowserClient()
       await supabase.auth.signOut()
       setUser(null)
+      setRole(null)
       router.replace('/auth/sign-in')
       router.refresh()
     } finally {
@@ -168,6 +203,7 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
   }
 
   const userEmail = getCleanEmail(user?.email)
+  const visibleLinks = NAV_LINKS.filter((link) => link.href !== '/staff' || role === 'admin')
 
   return (
     <header className={`sticky top-0 z-40 border-b border-white/8 bg-slate-900 ${className}`.trim()}>
@@ -188,7 +224,7 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
 
         {/* Navigation */}
         <nav aria-label="Primary navigation" className="flex flex-1 items-center gap-0.5 overflow-x-auto scrollbar-none">
-          {NAV_LINKS.map((link) => {
+          {visibleLinks.map((link) => {
             const isActive =
               link.href === '/'
                 ? pathname === '/'

@@ -6,9 +6,8 @@ import PageShell from '@/app/components/ui/PageShell'
 import PageHeader from '@/app/components/ui/PageHeader'
 import SectionCard from '@/app/components/ui/SectionCard'
 import StatusBadge from '@/app/components/ui/StatusBadge'
+import { getCurrentUserAccess, normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
-
-type MembershipRole = 'admin' | 'nurse' | 'caregiver'
 
 interface AccountState {
   userId: string
@@ -46,43 +45,27 @@ export default function AccountPage() {
     async function loadAccount() {
       try {
         const supabase = getSupabaseBrowserClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        const access = await getCurrentUserAccess(supabase)
 
         if (!active) return
 
-        if (!user) {
+        if (!access.isSignedIn) {
           router.replace('/auth/sign-in')
           return
         }
 
-        const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] =
-          await Promise.all([
-            supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', user.id)
-              .maybeSingle(),
-            supabase
-              .from('care_home_members')
-              .select('id, care_home_id, role, care_homes(name)')
-              .eq('user_id', user.id)
-              .limit(1)
-              .maybeSingle(),
-          ])
+        if (!access.hasCareHome || !access.membership) {
+          router.replace('/onboarding')
+          return
+        }
 
-        if (profileError) throw new Error(profileError.message)
-        if (membershipError) throw new Error(membershipError.message)
-
-        const role = normalizeRole(membership?.role)
         let adminCount = 0
 
-        if (membership?.care_home_id) {
+        if (access.careHomeId) {
           const { count, error: countError } = await supabase
             .from('care_home_members')
             .select('id', { count: 'exact', head: true })
-            .eq('care_home_id', membership.care_home_id)
+            .eq('care_home_id', access.careHomeId)
             .eq('role', 'admin')
 
           if (countError) throw new Error(countError.message)
@@ -90,16 +73,13 @@ export default function AccountPage() {
         }
 
         const nextAccount: AccountState = {
-          userId: user.id,
-          email: user.email ?? '',
-          fullName: profile?.full_name ?? '',
-          membershipId: membership?.id ?? null,
-          careHomeId: membership?.care_home_id ?? null,
-          careHomeName:
-            membership?.care_homes && typeof membership.care_homes === 'object' && 'name' in membership.care_homes
-              ? String(membership.care_homes.name ?? '')
-              : '',
-          role,
+          userId: access.user?.id ?? '',
+          email: access.user?.email ?? access.profile?.email ?? '',
+          fullName: access.profile?.fullName ?? '',
+          membershipId: access.membership.id,
+          careHomeId: access.membership.careHomeId,
+          careHomeName: access.membership.careHomeName,
+          role: access.membership.role,
           adminCount,
         }
 
@@ -352,5 +332,5 @@ export default function AccountPage() {
 }
 
 function normalizeRole(role: string | null | undefined): MembershipRole | null {
-  return role === 'admin' || role === 'nurse' || role === 'caregiver' ? role : null
+  return normalizeMembershipRole(role)
 }

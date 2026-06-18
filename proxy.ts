@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { updateSession } from '@/app/lib/supabase/middleware'
 
 const PUBLIC_AUTH_PATHS = ['/auth/sign-in', '/auth/sign-up']
+const ONBOARDING_PATH = '/onboarding'
 
 function isPublicAuthPath(pathname: string) {
   return PUBLIC_AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
@@ -10,7 +12,7 @@ function isPublicAuthPath(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const { response, user } = await updateSession(request)
+  const { response, supabase, user } = await updateSession(request)
 
   if (isPublicAuthPath(pathname)) {
     if (user) {
@@ -26,6 +28,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  if (!supabase) {
+    return response
+  }
+
+  const access = await getCurrentUserAccess(supabase, { user })
+
+  if (!access.hasCareHome && pathname !== ONBOARDING_PATH) {
+    return NextResponse.redirect(new URL(ONBOARDING_PATH, request.url))
+  }
+
+  if (access.hasCareHome && pathname === ONBOARDING_PATH) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   return response
 }
 
@@ -38,7 +54,9 @@ export const config = {
     '/incidents',
     '/medications',
     '/tasks',
+    '/staff',
     '/account',
+    '/onboarding',
     '/auth/:path*',
   ],
 }

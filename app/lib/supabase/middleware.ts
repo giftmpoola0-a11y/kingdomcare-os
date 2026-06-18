@@ -1,10 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import type { User } from '@supabase/supabase-js'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 export async function updateSession(request: NextRequest): Promise<{
   response: NextResponse
+  supabase: SupabaseClient | null
   user: User | null
 }> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -13,6 +14,7 @@ export async function updateSession(request: NextRequest): Promise<{
   if (!url || !publishableKey) {
     return {
       response: NextResponse.next({ request }),
+      supabase: null,
       user: null,
     }
   }
@@ -39,5 +41,5 @@ export async function updateSession(request: NextRequest): Promise<{
     data: { user },
   } = await supabase.auth.getUser()
 
-  return { response, user }
+  return { response, supabase, user }
 }
