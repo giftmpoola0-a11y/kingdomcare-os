@@ -78,6 +78,16 @@ function IcChecklist() {
   )
 }
 
+function IcAccount() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="7.5" cy="4" r="2.25"/>
+      <path d="M2.5 13c0-2.485 2.239-4.5 5-4.5s5 2.015 5 4.5"/>
+      <path d="M11.75 5.25h1.75M12.625 4.375v1.75"/>
+    </svg>
+  )
+}
+
 /* ── Nav link definitions ────────────────────────────────────── */
 
 const NAV_LINKS = [
@@ -88,6 +98,7 @@ const NAV_LINKS = [
   { href: '/incidents',  label: 'Incidents',  icon: <IcWarning />   },
   { href: '/medications',label: 'Medications',icon: <IcPill />      },
   { href: '/tasks',      label: 'Tasks',      icon: <IcChecklist /> },
+  { href: '/account',    label: 'Account',    icon: <IcAccount />   },
 ]
 
 export default function AppHeader({ className = '' }: { subtitle?: string; className?: string }) {

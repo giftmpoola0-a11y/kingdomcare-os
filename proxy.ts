@@ -38,6 +38,7 @@ export const config = {
     '/incidents',
     '/medications',
     '/tasks',
+    '/account',
     '/auth/:path*',
   ],
 }

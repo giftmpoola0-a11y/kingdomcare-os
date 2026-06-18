@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import PageShell from '@/app/components/ui/PageShell'
+import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
+import { getMyMembership } from '@/app/lib/supabase/careHomes'
 import AnimatedNumber from '@/app/components/AnimatedNumber'
 import { loadIncidents } from '@/app/lib/incidents'
 import type { SavedIncident } from '@/app/lib/incidentTypes'
@@ -130,6 +133,7 @@ const TASK_CARDS = [
 /* ── Page component ──────────────────────────────────────────── */
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [reports, setReports] = useState<SavedReport[]>([])
   const [incidents, setIncidents] = useState<SavedIncident[]>([])
   const [medications, setMedications] = useState<SavedMedicationEntry[]>([])
@@ -141,6 +145,30 @@ export default function DashboardPage() {
     setMedications(loadMedications())
     setTasks(loadTasks())
   }, [])
+
+  // If a signed-in user has no care home membership, redirect to onboarding.
+  // Errors are swallowed so a missing Supabase config never breaks the dashboard.
+  useEffect(() => {
+    let active = true
+
+    async function checkMembership() {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!active || !user) return
+
+        const membership = await getMyMembership(supabase)
+        if (active && membership === null) {
+          router.replace('/onboarding')
+        }
+      } catch {
+        // Supabase not configured or offline — stay on dashboard
+      }
+    }
+
+    checkMembership()
+    return () => { active = false }
+  }, [router])
 
   const latestReport    = reports[0]    ?? null
   const latestIncident  = incidents[0]  ?? null
