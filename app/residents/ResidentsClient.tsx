@@ -1,22 +1,19 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
+import QuickNoteChips from '@/app/components/QuickNoteChips'
 import PageShell from '@/app/components/ui/PageShell'
 import SectionCard from '@/app/components/ui/SectionCard'
-import EmptyState from '@/app/components/ui/EmptyState'
-import QuickNoteChips from '@/app/components/QuickNoteChips'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import {
-  createResidentAction,
-  updateResidentAction,
   archiveResidentAction,
+  createResidentAction,
   deleteResidentAction,
   restoreResidentAction,
+  updateResidentAction,
 } from './actions'
-
-/* ── Quick-select chips ─────────────────────────────────────── */
 
 const CARE_LEVEL_SUGGESTIONS = [
   'Independent with reminders',
@@ -50,49 +47,41 @@ const SUPPORT_NEED_SUGGESTIONS = [
   'Family communication support',
 ]
 
-/* ── Input class ────────────────────────────────────────────── */
-
 const INPUT_CLASS =
-  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
+  'w-full rounded-xl border border-border bg-background/60 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 
 const TEXTAREA_CLASS =
-  'w-full rounded-xl border border-slate-300 px-4 py-3.5 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none'
+  'w-full rounded-xl border border-border bg-background/60 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none'
 
-/* ── Helpers ────────────────────────────────────────────────── */
+const AVATAR_COLORS = [
+  'bg-primary/15 text-primary',
+  'bg-success/15 text-success',
+  'bg-warning/20 text-warning-foreground',
+  'bg-destructive/15 text-destructive',
+  'bg-accent text-accent-foreground',
+  'bg-secondary text-secondary-foreground',
+]
 
 function getInitials(name: string): string {
   return name
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
-    .map((w) => w[0])
+    .map((word) => word[0])
     .join('')
     .toUpperCase()
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-100 text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-violet-100 text-violet-700',
-  'bg-rose-100 text-rose-700',
-  'bg-amber-100 text-amber-700',
-  'bg-sky-100 text-sky-700',
-]
-
 function avatarColor(id: string) {
-  const sum = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  const sum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return AVATAR_COLORS[sum % AVATAR_COLORS.length]
 }
-
-/* ── Props ──────────────────────────────────────────────────── */
 
 export interface ResidentsClientProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
   loadError: string | null
 }
-
-/* ── Component ──────────────────────────────────────────────── */
 
 export default function ResidentsClient({
   initialResidents,
@@ -102,11 +91,11 @@ export default function ResidentsClient({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const [showForm, setShowForm]                     = useState(false)
-  const [showArchived, setShowArchived]             = useState(false)
-  const [editingResidentId, setEditingResidentId]   = useState<string | null>(null)
-  const [formError, setFormError]                   = useState('')
-  const [actionError, setActionError]               = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [editingResidentId, setEditingResidentId] = useState<string | null>(null)
+  const [formError, setFormError] = useState('')
+  const [actionError, setActionError] = useState('')
   const [form, setForm] = useState({
     name: '',
     age: '',
@@ -116,7 +105,7 @@ export default function ResidentsClient({
   })
 
   const visibleResidents = initialResidents.filter(
-    (r) => showArchived || r.status !== 'archived'
+    (resident) => showArchived || resident.status !== 'archived'
   )
 
   function handleChange(field: keyof typeof form, value: string) {
@@ -158,27 +147,49 @@ export default function ResidentsClient({
   }
 
   function handleSaveResident() {
-    const name     = form.name.trim()
-    const age      = Number(form.age)
+    const name = form.name.trim()
+    const age = Number(form.age)
     const careLevel = form.careLevel.trim()
     const primarySupportNeeds = form.primarySupportNeeds
       .split('\n')
-      .flatMap((l) => l.split(','))
-      .map((n) => n.trim())
+      .flatMap((line) => line.split(','))
+      .map((need) => need.trim())
       .filter(Boolean)
     const notes = form.notes.trim()
 
-    if (!name)                                           { setFormError('Name is required.'); return }
-    if (!Number.isFinite(age) || age <= 0)               { setFormError('A valid age is required.'); return }
-    if (!careLevel)                                      { setFormError('Care level is required.'); return }
-    if (primarySupportNeeds.length === 0)                { setFormError('At least one support need is required.'); return }
-    if (!notes)                                          { setFormError('Notes are required.'); return }
+    if (!name) {
+      setFormError('Name is required.')
+      return
+    }
+    if (!Number.isFinite(age) || age <= 0) {
+      setFormError('A valid age is required.')
+      return
+    }
+    if (!careLevel) {
+      setFormError('Care level is required.')
+      return
+    }
+    if (primarySupportNeeds.length === 0) {
+      setFormError('At least one support need is required.')
+      return
+    }
+    if (!notes) {
+      setFormError('Notes are required.')
+      return
+    }
 
     setActionError('')
 
     startTransition(async () => {
       const result = editingResidentId
-        ? await updateResidentAction({ id: editingResidentId, name, age, careLevel, primarySupportNeeds, notes })
+        ? await updateResidentAction({
+            id: editingResidentId,
+            name,
+            age,
+            careLevel,
+            primarySupportNeeds,
+            notes,
+          })
         : await createResidentAction({ name, age, careLevel, primarySupportNeeds, notes })
 
       if (!result.success) {
@@ -197,7 +208,10 @@ export default function ResidentsClient({
     setActionError('')
     startTransition(async () => {
       const result = await deleteResidentAction(id)
-      if (!result.success) { setActionError(result.error); return }
+      if (!result.success) {
+        setActionError(result.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -208,7 +222,10 @@ export default function ResidentsClient({
     setActionError('')
     startTransition(async () => {
       const result = await archiveResidentAction(id)
-      if (!result.success) { setActionError(result.error); return }
+      if (!result.success) {
+        setActionError(result.error)
+        return
+      }
       router.refresh()
     })
   }
@@ -217,20 +234,28 @@ export default function ResidentsClient({
     setActionError('')
     startTransition(async () => {
       const result = await restoreResidentAction(id)
-      if (!result.success) { setActionError(result.error); return }
+      if (!result.success) {
+        setActionError(result.error)
+        return
+      }
       router.refresh()
     })
   }
 
   return (
     <PageShell>
-      {/* Page header */}
-      <div className="anim-slide-down border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6 lg:py-8">
+        <div className="anim-slide-down flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-emerald-600">Residents</p>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Resident Profiles</h1>
-            <p className="mt-1 text-sm text-slate-500">Prototype profiles for testing only.</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+              Residents
+            </p>
+            <h1 className="font-heading text-3xl font-semibold text-foreground md:text-4xl">
+              Resident Profiles
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              View, update, archive, and manage resident profiles for your current care home.
+            </p>
           </div>
           {isAdmin && (
             <div className="flex shrink-0 items-center gap-3">
@@ -240,8 +265,8 @@ export default function ResidentsClient({
                 onClick={() => (showForm ? resetForm() : setShowForm(true))}
                 className={
                   showForm
-                    ? 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50'
-                    : 'inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800'
+                    ? 'inline-flex items-center justify-center rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent'
+                    : 'inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90'
                 }
               >
                 {showForm ? 'Cancel' : '+ Add Resident'}
@@ -249,40 +274,37 @@ export default function ResidentsClient({
             </div>
           )}
         </div>
-      </div>
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:px-6">
-
-        {/* Load / action errors */}
         {(loadError || actionError) && (
-          <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <p
+            role="alert"
+            className="mt-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+          >
             {loadError ?? actionError}
           </p>
         )}
 
-        {/* Show archived toggle */}
-        <div className="flex items-center justify-end">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <div className="mt-4 flex items-center justify-end">
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
             <input
               type="checkbox"
               checked={showArchived}
               onChange={(e) => setShowArchived(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
             />
             <span className="font-medium">Show archived</span>
           </label>
         </div>
 
-        {/* ── Add / Edit form ─────────────────────────────── */}
         {showForm && isAdmin && (
-          <SectionCard className="p-6 sm:p-8">
-            <h2 className="mb-6 text-lg font-bold text-slate-900">
+          <SectionCard className="mt-4 rounded-2xl border-border bg-card p-6 shadow-sm backdrop-blur-none">
+            <h2 className="mb-6 font-heading text-2xl font-semibold text-foreground">
               {editingResidentId ? 'Edit Resident' : 'New Resident'}
             </h2>
 
             <div className="space-y-5">
               <div className="space-y-1.5">
-                <label htmlFor="residentName" className="block text-sm font-semibold text-slate-700">
+                <label htmlFor="residentName" className="block text-sm font-semibold text-foreground">
                   Full Name
                 </label>
                 <input
@@ -297,7 +319,7 @@ export default function ResidentsClient({
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label htmlFor="residentAge" className="block text-sm font-semibold text-slate-700">
+                  <label htmlFor="residentAge" className="block text-sm font-semibold text-foreground">
                     Age
                   </label>
                   <input
@@ -311,7 +333,10 @@ export default function ResidentsClient({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="residentCareLevel" className="block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="residentCareLevel"
+                    className="block text-sm font-semibold text-foreground"
+                  >
                     Care Level
                   </label>
                   <input
@@ -330,7 +355,10 @@ export default function ResidentsClient({
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="residentSupportNeeds" className="block text-sm font-semibold text-slate-700">
+                <label
+                  htmlFor="residentSupportNeeds"
+                  className="block text-sm font-semibold text-foreground"
+                >
                   Primary Support Needs
                 </label>
                 <textarea
@@ -349,7 +377,7 @@ export default function ResidentsClient({
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="residentNotes" className="block text-sm font-semibold text-slate-700">
+                <label htmlFor="residentNotes" className="block text-sm font-semibold text-foreground">
                   Notes
                 </label>
                 <textarea
@@ -362,27 +390,34 @@ export default function ResidentsClient({
               </div>
 
               {formError && (
-                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                <p
+                  role="alert"
+                  className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+                >
                   {formError}
                 </p>
               )}
 
-              <div className="flex items-center gap-3 border-t border-slate-100 pt-5">
+              <div className="flex items-center gap-3 border-t border-border pt-5">
                 <button
                   type="button"
                   onClick={handleSaveResident}
                   disabled={isPending}
-                  className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isPending
-                    ? (editingResidentId ? 'Updating...' : 'Saving...')
-                    : (editingResidentId ? 'Update Resident' : 'Save Resident')}
+                    ? editingResidentId
+                      ? 'Updating...'
+                      : 'Saving...'
+                    : editingResidentId
+                      ? 'Update Resident'
+                      : 'Save Resident'}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
                   disabled={isPending}
-                  className="text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700"
+                  className="rounded-xl border border-border bg-card px-5 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancel
                 </button>
@@ -391,25 +426,27 @@ export default function ResidentsClient({
           </SectionCard>
         )}
 
-        {/* ── Resident list ────────────────────────────────── */}
         {visibleResidents.length === 0 ? (
           initialResidents.length === 0 ? (
-            <SectionCard className="p-10 text-center">
+            <SectionCard className="mt-4 rounded-2xl border-dashed border-border bg-card p-8 text-center shadow-sm backdrop-blur-none">
               <div className="mx-auto max-w-sm space-y-5">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-2xl font-light text-slate-400">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background/60 text-2xl font-light text-muted-foreground">
                   +
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-bold text-slate-900">No residents yet</h2>
-                  <p className="text-sm leading-relaxed text-slate-500">
-                    Create a prototype resident to start shift reports, incidents, and medication reminders.
+                  <h2 className="font-heading text-2xl font-semibold text-foreground">
+                    No residents yet
+                  </h2>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Create a prototype resident to start shift reports, incidents, and medication
+                    reminders.
                   </p>
                 </div>
                 {isAdmin && (
                   <button
                     type="button"
                     onClick={() => setShowForm(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                   >
                     + Add Resident
                   </button>
@@ -417,13 +454,22 @@ export default function ResidentsClient({
               </div>
             </SectionCard>
           ) : (
-            <EmptyState message="No residents match the current view." />
+            <div className="mt-4 rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-sm">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background/60">
+                <span className="text-xl leading-none text-muted-foreground" aria-hidden="true">
+                  -
+                </span>
+              </div>
+              <p className="mt-4 text-sm font-medium text-muted-foreground">
+                No residents match the current view.
+              </p>
+            </div>
           )
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleResidents.map((resident) => {
               const isArchived = resident.status === 'archived'
-              const avatarClr  = avatarColor(resident.id)
+              const avatarClr = avatarColor(resident.id)
 
               // Linked records check is transitional: reports/incidents/medications still use
               // localStorage and cannot find Supabase resident IDs until those modules migrate.
@@ -434,29 +480,30 @@ export default function ResidentsClient({
                 <SectionCard
                   key={resident.id}
                   as="article"
-                  className={`flex flex-col overflow-hidden transition-all duration-200 hover:shadow-md ${isArchived ? 'opacity-75' : ''}`}
+                  className={`rounded-2xl border-border bg-card p-5 shadow-sm backdrop-blur-none ${isArchived ? 'opacity-75' : ''}`}
                 >
-                  {/* Card body */}
-                  <div className="flex flex-1 gap-4 p-5 sm:p-6">
-                    {/* Avatar */}
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${avatarClr}`}>
+                  <div className="flex flex-1 gap-4 rounded-xl border border-border bg-background/60 p-3.5 transition-colors hover:bg-accent/40">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${avatarClr}`}
+                    >
                       {getInitials(resident.name)}
                     </div>
 
-                    {/* Info */}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-base font-bold text-slate-900">{resident.name}</h2>
+                        <h2 className="font-heading text-xl font-semibold text-foreground">
+                          {resident.name}
+                        </h2>
                         {isArchived && (
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                          <span className="rounded-full bg-warning/20 px-2.5 py-1 text-[10px] font-semibold text-warning-foreground">
                             Archived
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-400">Age {resident.age}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Age {resident.age}</p>
 
                       <div className="mt-2">
-                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
+                        <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">
                           {resident.careLevel}
                         </span>
                       </div>
@@ -466,13 +513,13 @@ export default function ResidentsClient({
                           {resident.primarySupportNeeds.slice(0, 4).map((need) => (
                             <span
                               key={need}
-                              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600"
+                              className="rounded-full bg-secondary px-2.5 py-1 text-[10px] text-secondary-foreground"
                             >
                               {need}
                             </span>
                           ))}
                           {resident.primarySupportNeeds.length > 4 && (
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-400">
+                            <span className="rounded-full bg-accent px-2.5 py-1 text-[10px] text-muted-foreground">
                               +{resident.primarySupportNeeds.length - 4} more
                             </span>
                           )}
@@ -480,18 +527,17 @@ export default function ResidentsClient({
                       )}
 
                       {resident.notes && (
-                        <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                        <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                           {resident.notes}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Action footer */}
-                  <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3.5">
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
                     <Link
                       href={`/residents/${resident.id}`}
-                      className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-700"
+                      className="rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                     >
                       View Profile
                     </Link>
@@ -501,7 +547,7 @@ export default function ResidentsClient({
                         type="button"
                         disabled={isPending}
                         onClick={() => handleEditResident(resident)}
-                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                        className="rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
                       >
                         Edit
                       </button>
@@ -512,7 +558,7 @@ export default function ResidentsClient({
                         type="button"
                         disabled={isPending}
                         onClick={() => handleDeleteResident(resident.id)}
-                        className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
+                        className="rounded-xl bg-destructive/15 px-4 py-2.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-60"
                       >
                         Delete
                       </button>
@@ -523,7 +569,7 @@ export default function ResidentsClient({
                         type="button"
                         disabled={isPending}
                         onClick={() => handleArchiveResident(resident.id)}
-                        className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                        className="rounded-xl bg-warning/20 px-4 py-2.5 text-xs font-semibold text-warning-foreground transition-colors hover:bg-warning/30 disabled:opacity-60"
                       >
                         Archive
                       </button>
@@ -534,7 +580,7 @@ export default function ResidentsClient({
                         type="button"
                         disabled={isPending}
                         onClick={() => handleRestoreResident(resident.id)}
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
+                        className="rounded-xl bg-success/15 px-4 py-2.5 text-xs font-semibold text-success transition-colors hover:bg-success/25 disabled:opacity-60"
                       >
                         Restore
                       </button>
