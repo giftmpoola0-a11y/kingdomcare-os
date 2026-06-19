@@ -1,11 +1,13 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import PageShell from '@/app/components/ui/PageShell'
 import PageHeader from '@/app/components/ui/PageHeader'
 import SectionCard from '@/app/components/ui/SectionCard'
+import { signUpAction } from '@/app/auth/actions'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 const INPUT_CLASS =
@@ -58,23 +60,18 @@ export default function SignUpPage() {
     setErrorMessage('')
 
     try {
-      const supabase = getSupabaseBrowserClient()
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+      const result = await signUpAction({
+        fullName,
+        email,
         password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-          },
-        },
       })
 
-      if (error) {
-        setErrorMessage(error.message)
+      if (!result.success) {
+        setErrorMessage(result.error)
         return
       }
 
-      if (data.session) {
+      if (!result.requiresEmailConfirmation) {
         router.replace('/')
         router.refresh()
         return
@@ -98,6 +95,17 @@ export default function SignUpPage() {
       />
 
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <div className="mb-6 flex justify-center">
+          <Image
+            src="/brand/the-kingdom-care-homes-logo.png"
+            alt="The Kingdom Care Homes"
+            height={44}
+            width={220}
+            className="h-11 w-auto object-contain"
+            priority
+          />
+        </div>
+
         <SectionCard className="p-6">
           <div className="space-y-4">
             <div className="space-y-1">

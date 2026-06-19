@@ -87,9 +87,15 @@ before update on public.residents
 for each row
 execute function public.handle_residents_before_update();
 
+revoke all on table public.residents from public;
+revoke all on table public.residents from anon;
+revoke all on table public.residents from authenticated;
+grant select, insert, update on table public.residents to authenticated;
+
 alter table public.residents enable row level security;
 
 drop policy if exists "residents: members can read own home" on public.residents;
+drop policy if exists "residents: admins can read deleted own home" on public.residents;
 drop policy if exists "residents: admins can insert" on public.residents;
 drop policy if exists "residents: admins can update" on public.residents;
 
@@ -99,6 +105,14 @@ create policy "residents: members can read own home"
   using (
     deleted_at is null
     and care_home_id in (select public.get_my_care_home_ids())
+  );
+
+create policy "residents: admins can read deleted own home"
+  on public.residents
+  for select
+  using (
+    deleted_at is not null
+    and public.is_care_home_admin(care_home_id)
   );
 
 create policy "residents: admins can insert"

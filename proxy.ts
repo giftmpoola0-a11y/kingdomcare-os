@@ -10,6 +10,10 @@ function isPublicAuthPath(pathname: string) {
   return PUBLIC_AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 
+function isServerActionRequest(request: NextRequest) {
+  return request.method === 'POST' && request.headers.has('next-action')
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const { response, supabase, user } = await updateSession(request)
@@ -38,7 +42,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(ONBOARDING_PATH, request.url))
   }
 
-  if (access.hasCareHome && pathname === ONBOARDING_PATH) {
+  if (access.hasCareHome && pathname === ONBOARDING_PATH && !isServerActionRequest(request)) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 

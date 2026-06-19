@@ -1,11 +1,13 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import PageShell from '@/app/components/ui/PageShell'
 import PageHeader from '@/app/components/ui/PageHeader'
 import SectionCard from '@/app/components/ui/SectionCard'
+import { signInAction } from '@/app/auth/actions'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 const INPUT_CLASS =
@@ -51,14 +53,13 @@ function SignInContent() {
     setErrorMessage('')
 
     try {
-      const supabase = getSupabaseBrowserClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+      const result = await signInAction({
+        email,
         password,
       })
 
-      if (error) {
-        setErrorMessage(error.message)
+      if (!result.success) {
+        setErrorMessage(result.error)
         return
       }
 
@@ -81,6 +82,17 @@ function SignInContent() {
       />
 
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <div className="mb-6 flex justify-center">
+          <Image
+            src="/brand/the-kingdom-care-homes-logo.png"
+            alt="The Kingdom Care Homes"
+            height={44}
+            width={220}
+            className="h-11 w-auto object-contain"
+            priority
+          />
+        </div>
+
         <SectionCard className="p-6">
           <div className="space-y-4">
             <div className="space-y-1">

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -210,13 +211,17 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
 
         {/* Brand */}
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="KingdomCare OS home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-linear-to-br from-blue-400 to-blue-600 text-[13px] font-black tracking-tight text-white shadow-md">
-            K
-          </span>
-          <span className="hidden text-sm font-semibold tracking-tight text-white sm:block">
-            KingdomCare{' '}
-            <span className="font-normal text-slate-400">OS</span>
+        <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="The Kingdom Care Homes home">
+          <Image
+            src="/brand/the-kingdom-care-homes-logo.png"
+            alt="The Kingdom Care Homes"
+            height={36}
+            width={180}
+            className="h-9 w-auto object-contain"
+            priority
+          />
+          <span className="hidden text-[11px] font-semibold tracking-widest text-slate-400 sm:block">
+            OS
           </span>
         </Link>
 

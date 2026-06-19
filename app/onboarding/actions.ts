@@ -1,5 +1,6 @@
 'use server'
 
+import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
 export type OnboardingActionResult =
@@ -35,6 +36,11 @@ export async function createCareHomeAction(
         success: false,
         error: 'You must be signed in to create a care home. Please sign in and try again.',
       }
+    }
+
+    const access = await getCurrentUserAccess(supabase, { user })
+    if (access.hasCareHome) {
+      return { success: true }
     }
 
     const { error: rpcError } = await supabase.rpc('create_care_home_onboarding', {
