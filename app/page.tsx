@@ -1,50 +1,40 @@
-'use client'
-
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
-import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
-import { getMyMembership } from '@/app/lib/supabase/careHomes'
+import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getActiveCurrentCareHomeResidents } from '@/app/lib/supabase/residents'
+import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-v0-sans',
   subsets: ['latin'],
 })
 
-export default function DashboardPage() {
-  const router = useRouter()
+export default async function DashboardPage() {
+  const supabase = await getSupabaseServerClient()
+  const access = await getCurrentUserAccess(supabase)
 
-  useEffect(() => {
-    let active = true
+  if (!access.isSignedIn) {
+    redirect('/auth/sign-in')
+  }
 
-    async function checkMembership() {
-      try {
-        const supabase = getSupabaseBrowserClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!active || !user) return
+  if (!access.hasCareHome) {
+    redirect('/onboarding')
+  }
 
-        const membership = await getMyMembership(supabase)
-        if (active && membership === null) {
-          router.replace('/onboarding')
-        }
-      } catch {
-        // If Supabase is unavailable in the browser, keep the dashboard shell visible.
-      }
-    }
+  let activeResidentsCount = 0
 
-    checkMembership()
-    return () => {
-      active = false
-    }
-  }, [router])
+  try {
+    const activeResidents = await getActiveCurrentCareHomeResidents()
+    activeResidentsCount = activeResidents.length
+  } catch (error) {
+    console.error('Failed to load active residents count for dashboard:', error)
+  }
 
   return (
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
-        <DashboardShell />
+        <DashboardShell activeResidentsCount={activeResidentsCount} />
       </div>
     </div>
   )

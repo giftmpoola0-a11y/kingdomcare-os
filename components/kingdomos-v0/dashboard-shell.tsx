@@ -10,7 +10,11 @@ import { CareAttention } from "@/components/kingdomos-v0/dashboard/care-attentio
 import { StaffOnDuty } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
 import { RecentActivity } from "@/components/kingdomos-v0/dashboard/recent-activity"
 
-export function DashboardShell() {
+interface DashboardShellProps {
+  activeResidentsCount?: number
+}
+
+export function DashboardShell({ activeResidentsCount }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -24,17 +28,15 @@ export function DashboardShell() {
           <WelcomeHeader />
 
           <div className="mt-7">
-            <KpiCards />
+            <KpiCards activeResidentsCount={activeResidentsCount} />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Main column */}
             <div className="flex flex-col gap-6 lg:col-span-2">
               <TodayGlance />
               <CareAttention />
             </div>
 
-            {/* Side column */}
             <div className="flex flex-col gap-6">
               <StaffOnDuty />
               <RecentActivity />

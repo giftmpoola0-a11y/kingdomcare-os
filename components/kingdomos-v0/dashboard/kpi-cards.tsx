@@ -23,10 +23,20 @@ const trendIcon = {
   flat: Minus,
 }
 
-export function KpiCards() {
+interface KpiCardsProps {
+  activeResidentsCount?: number
+}
+
+export function KpiCards({ activeResidentsCount }: KpiCardsProps) {
+  const resolvedKpis = kpis.map((kpi) =>
+    kpi.label === "Active Residents" && typeof activeResidentsCount === "number"
+      ? { ...kpi, value: String(activeResidentsCount) }
+      : kpi,
+  )
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {kpis.map((kpi) => {
+      {resolvedKpis.map((kpi) => {
         const Icon = iconMap[kpi.label as keyof typeof iconMap] ?? Users
         const TrendIcon = trendIcon[kpi.trend]
         return (
