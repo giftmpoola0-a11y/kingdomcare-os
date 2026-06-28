@@ -8,15 +8,15 @@ export function RecentActivity() {
     <Card className="gap-0 rounded-2xl border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-accent/70 text-primary">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border/80">
             <ActivityIcon className="size-[18px]" />
           </span>
           <div>
-            <h2 className="font-heading text-lg font-semibold text-foreground">Recent activity</h2>
+            <h2 className="text-lg font-semibold text-foreground">Recent activity</h2>
             <p className="text-xs text-muted-foreground">Latest updates from your team</p>
           </div>
         </div>
-        <a href="#" className="text-xs font-medium text-primary hover:underline">
+        <a href="#" className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
           View all
         </a>
       </div>

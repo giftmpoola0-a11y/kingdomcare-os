@@ -6,25 +6,28 @@ import { cn } from "@/lib/utils"
 
 const priorityConfig: Record<
   AttentionItem["priority"],
-  { label: string; badge: string; ring: string; bar: string }
+  { label: string; badge: string; ring: string; bar: string; row: string }
 > = {
   urgent: {
     label: "Urgent",
-    badge: "bg-destructive/15 text-destructive",
-    ring: "bg-destructive/15 text-destructive",
+    badge: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/35",
+    ring: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/35",
     bar: "bg-destructive",
+    row: "border-rose-400/20 shadow-[0_0_0_1px_rgba(251,113,133,0.12),0_0_22px_rgba(251,113,133,0.1)]",
   },
   warning: {
     label: "Warning",
-    badge: "bg-warning/20 text-warning-foreground",
-    ring: "bg-warning/20 text-warning-foreground",
+    badge: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35",
+    ring: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35",
     bar: "bg-warning",
+    row: "border-amber-400/20 shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_18px_rgba(251,191,36,0.08)]",
   },
   watch: {
     label: "Watch",
-    badge: "bg-success/15 text-success",
-    ring: "bg-success/15 text-success",
+    badge: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/35",
+    ring: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/35",
     bar: "bg-success",
+    row: "border-emerald-400/20 shadow-[0_0_0_1px_rgba(52,211,153,0.1),0_0_18px_rgba(52,211,153,0.06)]",
   },
 }
 
@@ -33,17 +36,15 @@ export function CareAttention() {
     <Card className="gap-0 rounded-2xl border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/35">
             <HeartPulse className="size-[18px]" />
           </span>
           <div>
-            <h2 className="font-heading text-lg font-semibold text-foreground">
-              Care attention needed
-            </h2>
+            <h2 className="text-lg font-semibold text-foreground">Care attention needed</h2>
             <p className="text-xs text-muted-foreground">Residents flagged for review</p>
           </div>
         </div>
-        <span className="rounded-full bg-destructive/15 px-2.5 py-1 text-xs font-semibold text-destructive">
+        <span className="rounded-full bg-rose-500/15 px-2.5 py-1 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35">
           {attentionItems.length}
         </span>
       </div>
@@ -54,7 +55,10 @@ export function CareAttention() {
           return (
             <li
               key={item.resident}
-              className="group relative flex items-center gap-4 overflow-hidden rounded-xl border border-border bg-background/60 p-3.5 transition-colors hover:bg-accent/40"
+              className={cn(
+                "group relative flex items-center gap-4 overflow-hidden rounded-xl border bg-background/60 p-3.5 transition-colors hover:bg-accent/40",
+                config.row,
+              )}
             >
               <span className={cn("absolute inset-y-0 left-0 w-1", config.bar)} aria-hidden="true" />
               <Avatar className="size-10">

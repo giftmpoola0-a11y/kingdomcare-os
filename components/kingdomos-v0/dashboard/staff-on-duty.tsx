@@ -4,10 +4,22 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { staffOnDuty, type StaffMember } from "@/lib/kingdomos-v0-dashboard-data"
 import { cn } from "@/lib/utils"
 
-const statusConfig: Record<StaffMember["status"], { label: string; dot: string; text: string }> = {
-  "on-shift": { label: "On shift", dot: "bg-success", text: "text-success" },
-  break: { label: "On break", dot: "bg-warning", text: "text-warning-foreground" },
-  arriving: { label: "Arriving", dot: "bg-primary", text: "text-primary" },
+const statusConfig: Record<StaffMember["status"], { label: string; pill: string; dot: string }> = {
+  "on-shift": {
+    label: "On shift",
+    pill: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/35",
+    dot: "bg-emerald-400 shadow-[0_0_0_1px_rgba(52,211,153,0.35),0_0_12px_rgba(52,211,153,0.35)]",
+  },
+  break: {
+    label: "On break",
+    pill: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35",
+    dot: "bg-amber-400 shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_0_12px_rgba(251,191,36,0.3)]",
+  },
+  arriving: {
+    label: "Arriving",
+    pill: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35",
+    dot: "bg-amber-300 shadow-[0_0_0_1px_rgba(252,211,77,0.32),0_0_12px_rgba(251,191,36,0.26)]",
+  },
 }
 
 export function StaffOnDuty() {
@@ -19,7 +31,7 @@ export function StaffOnDuty() {
             <Users2 className="size-[18px]" />
           </span>
           <div>
-            <h2 className="font-heading text-lg font-semibold text-foreground">Staff on duty</h2>
+            <h2 className="text-lg font-semibold text-foreground">Staff on duty</h2>
             <p className="text-xs text-muted-foreground">{staffOnDuty.length} caring for residents now</p>
           </div>
         </div>
@@ -41,11 +53,16 @@ export function StaffOnDuty() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">{member.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {member.role} · {member.shift}
+                  {member.role} / {member.shift}
                 </p>
               </div>
-              <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", status.text)}>
-                <span className={cn("size-1.5 rounded-full", status.dot)} />
+              <span
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold",
+                  status.pill,
+                )}
+              >
+                <span className={cn("size-2 rounded-full", status.dot)} />
                 {status.label}
               </span>
             </li>
