@@ -42,7 +42,7 @@ export function AppSidebar({
               />
             </div>
             <div className="leading-tight">
-              <p className="font-heading text-base font-semibold text-sidebar-foreground">
+              <p className="text-base font-semibold text-sidebar-foreground">
                 KingdomCare OS
               </p>
               <p className="text-xs text-muted-foreground">Care Operations</p>
