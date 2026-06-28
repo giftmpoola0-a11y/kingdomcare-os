@@ -1,13 +1,16 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
 import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
 type TypedSupabaseClient = SupabaseClient<any>
 
-type TaskStatus = 'open' | 'in_progress' | 'completed' | 'archived'
-type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
+export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'archived'
+export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
+
+const TASK_CATEGORY_MARKER = /^\[\[category:(.+?)\]\]\n?/i
 
 interface TaskRow {
   id: string
@@ -38,6 +41,7 @@ export interface TaskRecord {
   residentId: string | null
   title: string
   description: string
+  category: TaskCategory
   status: TaskStatus
   priority: TaskPriority
   dueAt: string | null
@@ -53,6 +57,7 @@ export interface CreateTaskInput {
   residentId?: string | null
   title: string
   description?: string | null
+  category?: TaskCategory | null
   priority?: TaskPriority | null
   dueAt?: string | null
   assignedTo?: string | null
@@ -63,6 +68,7 @@ export interface UpdateTaskInput {
   residentId?: string | null
   title?: string
   description?: string | null
+  category?: TaskCategory | null
   status?: TaskStatus
   priority?: TaskPriority
   dueAt?: string | null
@@ -84,7 +90,7 @@ export async function getCurrentCareHomeTasks(): Promise<TaskRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapTaskRowToRecord)
+  return (data ?? []).map((row) => mapTaskRowToRecord(row as TaskRow))
 }
 
 export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
@@ -102,7 +108,7 @@ export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapTaskRowToRecord)
+  return (data ?? []).map((row) => mapTaskRowToRecord(row as TaskRow))
 }
 
 export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
@@ -111,7 +117,7 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
     care_home_id: careHomeId,
     resident_id: normalizeOptionalText(input.residentId),
     title: input.title.trim(),
-    description: normalizeOptionalText(input.description),
+    description: serializeTaskDescription(input.category, input.description),
     status: 'open' as TaskStatus,
     priority: normalizeTaskPriority(input.priority),
     due_at: normalizeOptionalText(input.dueAt),
@@ -126,16 +132,17 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
     throw new Error(error.message)
   }
 
-  return mapTaskRowToRecord(data)
+  return mapTaskRowToRecord(data as TaskRow)
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
-  const { supabase, careHomeId } = await getTaskContext('manage')
-  const updates = buildTaskUpdatePayload(input)
+  const requiresStatusAccessOnly = isStatusOnlyUpdate(input)
+  const { supabase, careHomeId } = await getTaskContext(requiresStatusAccessOnly ? 'status' : 'manage')
+  const needsExistingTask = Object.keys(input).length === 1 || 'category' in input || 'description' in input
+  const existingTask = needsExistingTask ? await getTaskRowById(supabase, careHomeId, input.id) : null
+  const updates = buildTaskUpdatePayload(input, existingTask)
 
   if (Object.keys(updates).length === 0) {
-    const existingTask = await getTaskRowById(supabase, careHomeId, input.id)
-
     if (!existingTask) {
       throw new Error('Task not found.')
     }
@@ -160,7 +167,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data)
+  return mapTaskRowToRecord(data as TaskRow)
 }
 
 export async function completeTask(taskId: string): Promise<TaskRecord> {
@@ -185,7 +192,7 @@ export async function completeTask(taskId: string): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data)
+  return mapTaskRowToRecord(data as TaskRow)
 }
 
 export async function archiveTask(taskId: string): Promise<TaskRecord> {
@@ -210,7 +217,7 @@ export async function archiveTask(taskId: string): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data)
+  return mapTaskRowToRecord(data as TaskRow)
 }
 
 export async function softDeleteTask(taskId: string): Promise<void> {
@@ -253,12 +260,15 @@ export async function softDeleteTask(taskId: string): Promise<void> {
 }
 
 export function mapTaskRowToRecord(row: TaskRow): TaskRecord {
+  const parsed = parseStoredTaskDescription(row.description)
+
   return {
     id: row.id,
     careHomeId: row.care_home_id,
     residentId: row.resident_id,
     title: row.title,
-    description: row.description ?? '',
+    description: parsed.description,
+    category: parsed.category,
     status: normalizeTaskStatus(row.status),
     priority: normalizeTaskPriority(row.priority),
     dueAt: row.due_at,
@@ -326,7 +336,7 @@ async function getTaskRowById(
   return data as TaskRow | null
 }
 
-function buildTaskUpdatePayload(input: UpdateTaskInput) {
+function buildTaskUpdatePayload(input: UpdateTaskInput, existingTask: TaskRow | null) {
   const payload: Record<string, string | null> = {}
 
   if ('residentId' in input) {
@@ -337,8 +347,12 @@ function buildTaskUpdatePayload(input: UpdateTaskInput) {
     payload.title = input.title.trim()
   }
 
-  if ('description' in input) {
-    payload.description = normalizeOptionalText(input.description)
+  if ('category' in input || 'description' in input) {
+    const parsedExisting = parseStoredTaskDescription(existingTask?.description ?? null)
+    payload.description = serializeTaskDescription(
+      'category' in input ? input.category : parsedExisting.category,
+      'description' in input ? input.description : parsedExisting.description,
+    )
   }
 
   if ('status' in input && input.status) {
@@ -364,6 +378,32 @@ function buildTaskUpdatePayload(input: UpdateTaskInput) {
   return payload
 }
 
+function parseStoredTaskDescription(value: string | null | undefined) {
+  const raw = value ?? ''
+  const match = raw.match(TASK_CATEGORY_MARKER)
+  const categoryCandidate = match?.[1]?.trim()
+  const category = normalizeTaskCategory(categoryCandidate)
+  const description = match ? raw.replace(TASK_CATEGORY_MARKER, '').trim() : raw.trim()
+
+  return {
+    category,
+    description,
+  }
+}
+
+function serializeTaskDescription(category: TaskCategory | null | undefined, description: string | null | undefined) {
+  const normalizedCategory = normalizeTaskCategory(category)
+  const normalizedDescription = normalizeOptionalText(description)
+  return normalizedDescription
+    ? `[[category:${normalizedCategory}]]\n${normalizedDescription}`
+    : `[[category:${normalizedCategory}]]`
+}
+
+function isStatusOnlyUpdate(input: UpdateTaskInput) {
+  const keys = Object.keys(input).filter((key) => key !== 'id')
+  return keys.length > 0 && keys.every((key) => key === 'status' || key === 'completedAt')
+}
+
 function normalizeOptionalText(value: string | null | undefined) {
   if (typeof value !== 'string') {
     return null
@@ -383,4 +423,10 @@ function normalizeTaskPriority(priority: string | null | undefined): TaskPriorit
   return priority === 'low' || priority === 'high' || priority === 'urgent'
     ? priority
     : 'normal'
+}
+
+function normalizeTaskCategory(category: string | null | undefined): TaskCategory {
+  return typeof category === 'string' && TASK_CATEGORIES.includes(category as TaskCategory)
+    ? (category as TaskCategory)
+    : 'Other'
 }
