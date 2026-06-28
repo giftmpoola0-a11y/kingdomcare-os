@@ -25,13 +25,16 @@ const trendIcon = {
 
 interface KpiCardsProps {
   activeResidentsCount?: number
+  openTasksCount?: number
 }
 
-export function KpiCards({ activeResidentsCount }: KpiCardsProps) {
+export function KpiCards({ activeResidentsCount, openTasksCount }: KpiCardsProps) {
   const resolvedKpis = kpis.map((kpi) =>
     kpi.label === "Active Residents" && typeof activeResidentsCount === "number"
       ? { ...kpi, value: String(activeResidentsCount) }
-      : kpi,
+      : kpi.label === "Open Tasks" && typeof openTasksCount === "number"
+        ? { ...kpi, value: String(openTasksCount) }
+        : kpi,
   )
 
   return (

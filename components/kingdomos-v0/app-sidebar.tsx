@@ -29,12 +29,22 @@ function isItemActive(pathname: string, label: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+function resolveItemBadge(label: string, defaultBadge: string | number | undefined, openTasksCount?: number) {
+  if (label === 'Tasks' && typeof openTasksCount === 'number') {
+    return openTasksCount
+  }
+
+  return defaultBadge
+}
+
 export function AppSidebar({
   open,
   onClose,
+  openTasksCount,
 }: {
   open: boolean
   onClose: () => void
+  openTasksCount?: number
 }) {
   const pathname = usePathname()
 
@@ -89,6 +99,7 @@ export function AppSidebar({
             {navItems.map((item) => {
               const href = navHrefMap[item.label] ?? item.href
               const active = isItemActive(pathname, item.label)
+              const badge = resolveItemBadge(item.label, item.badge, openTasksCount)
 
               return (
                 <li key={item.label}>
@@ -104,7 +115,7 @@ export function AppSidebar({
                   >
                     <item.icon className="size-[18px] shrink-0" />
                     <span className="flex-1">{item.label}</span>
-                    {item.badge ? (
+                    {badge ? (
                       <span
                         className={cn(
                           'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold',
@@ -113,7 +124,7 @@ export function AppSidebar({
                             : 'bg-accent text-accent-foreground',
                         )}
                       >
-                        {item.badge}
+                        {badge}
                       </span>
                     ) : null}
                   </Link>

@@ -4,6 +4,7 @@ import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { getActiveCurrentCareHomeResidents } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getOpenCurrentCareHomeTasks } from '@/app/lib/supabase/tasks'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-v0-sans',
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
   }
 
   let activeResidentsCount = 0
+  let openTasksCount = 0
 
   try {
     const activeResidents = await getActiveCurrentCareHomeResidents()
@@ -31,10 +33,20 @@ export default async function DashboardPage() {
     console.error('Failed to load active residents count for dashboard:', error)
   }
 
+  try {
+    const openTasks = await getOpenCurrentCareHomeTasks()
+    openTasksCount = openTasks.length
+  } catch (error) {
+    console.error('Failed to load open tasks count for dashboard:', error)
+  }
+
   return (
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
-        <DashboardShell activeResidentsCount={activeResidentsCount} />
+        <DashboardShell
+          activeResidentsCount={activeResidentsCount}
+          openTasksCount={openTasksCount}
+        />
       </div>
     </div>
   )

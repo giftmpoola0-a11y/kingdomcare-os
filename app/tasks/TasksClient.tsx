@@ -55,6 +55,7 @@ export interface TasksClientProps {
   activeResidents: ResidentRecord[]
   canManageTasks: boolean
   loadError: string | null
+  openTasksCount: number
 }
 
 export default function TasksClient({
@@ -62,6 +63,7 @@ export default function TasksClient({
   activeResidents,
   canManageTasks,
   loadError,
+  openTasksCount,
 }: TasksClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -233,7 +235,7 @@ export default function TasksClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} openTasksCount={openTasksCount} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
@@ -621,3 +623,4 @@ function formatDue(dueAt: string | null) {
     minute: '2-digit',
   })
 }
+

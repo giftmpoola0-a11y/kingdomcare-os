@@ -12,14 +12,19 @@ import { RecentActivity } from "@/components/kingdomos-v0/dashboard/recent-activ
 
 interface DashboardShellProps {
   activeResidentsCount?: number
+  openTasksCount?: number
 }
 
-export function DashboardShell({ activeResidentsCount }: DashboardShellProps) {
+export function DashboardShell({ activeResidentsCount, openTasksCount }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        openTasksCount={openTasksCount}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
@@ -28,7 +33,10 @@ export function DashboardShell({ activeResidentsCount }: DashboardShellProps) {
           <WelcomeHeader />
 
           <div className="mt-7">
-            <KpiCards activeResidentsCount={activeResidentsCount} />
+            <KpiCards
+              activeResidentsCount={activeResidentsCount}
+              openTasksCount={openTasksCount}
+            />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

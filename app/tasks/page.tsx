@@ -44,6 +44,7 @@ export default async function TasksPage() {
           activeResidents={residents.filter((resident) => resident.status !== 'archived')}
           canManageTasks={access.role === 'admin' || access.role === 'nurse'}
           loadError={loadError}
+          openTasksCount={tasks.filter((task) => task.status === 'open' || task.status === 'in_progress').length}
         />
       </div>
     </div>
