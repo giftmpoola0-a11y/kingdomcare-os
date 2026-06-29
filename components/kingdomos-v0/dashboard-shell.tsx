@@ -5,8 +5,8 @@ import { AppSidebar } from "@/components/kingdomos-v0/app-sidebar"
 import { AppTopbar } from "@/components/kingdomos-v0/app-topbar"
 import { WelcomeHeader } from "@/components/kingdomos-v0/dashboard/welcome-header"
 import { KpiCards } from "@/components/kingdomos-v0/dashboard/kpi-cards"
-import { TodayGlance } from "@/components/kingdomos-v0/dashboard/today-glance"
-import { CareAttention } from "@/components/kingdomos-v0/dashboard/care-attention"
+import { TodayGlance, type DashboardOperationalQueueItem } from "@/components/kingdomos-v0/dashboard/today-glance"
+import { CareAttention, type DashboardCareAttentionItem } from "@/components/kingdomos-v0/dashboard/care-attention"
 import { StaffOnDuty } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
 import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
 
@@ -16,6 +16,8 @@ interface DashboardShellProps {
   medicationAlertsCount?: number
   recentIncidentsCount?: number
   recentActivityItems?: DashboardRecentActivityItem[]
+  careAttentionItems?: DashboardCareAttentionItem[]
+  operationalQueueItems?: DashboardOperationalQueueItem[]
 }
 
 export function DashboardShell({
@@ -24,6 +26,8 @@ export function DashboardShell({
   medicationAlertsCount,
   recentIncidentsCount,
   recentActivityItems,
+  careAttentionItems,
+  operationalQueueItems,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -54,8 +58,8 @@ export function DashboardShell({
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
-              <TodayGlance />
-              <CareAttention />
+              <TodayGlance items={operationalQueueItems} />
+              <CareAttention items={careAttentionItems} />
             </div>
 
             <div className="flex flex-col gap-6">

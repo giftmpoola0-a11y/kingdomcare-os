@@ -1,10 +1,13 @@
 ﻿import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
+import type { DashboardCareAttentionItem } from '@/components/kingdomos-v0/dashboard/care-attention'
 import type { DashboardRecentActivityItem } from '@/components/kingdomos-v0/dashboard/recent-activity'
+import type { DashboardOperationalQueueItem } from '@/components/kingdomos-v0/dashboard/today-glance'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import {
   getCurrentCareHomeIncidents,
+  getOpenCurrentCareHomeIncidents,
   type IncidentRecord,
 } from '@/app/lib/supabase/incidents'
 import {
@@ -46,6 +49,8 @@ export default async function DashboardPage() {
   let medicationAlertsCount = 0
   let recentIncidentsCount = 0
   let recentActivityItems: DashboardRecentActivityItem[] = []
+  let careAttentionItems: DashboardCareAttentionItem[] = []
+  let operationalQueueItems: DashboardOperationalQueueItem[] = []
 
   try {
     const activeResidents = await getActiveCurrentCareHomeResidents()
@@ -97,6 +102,31 @@ export default async function DashboardPage() {
     console.error('Failed to load recent activity for dashboard:', error)
   }
 
+  try {
+    const [residents, openTasks, openIncidents, openMedicationAlerts] = await Promise.all([
+      getCurrentCareHomeResidents(),
+      getOpenCurrentCareHomeTasks(),
+      getOpenCurrentCareHomeIncidents(),
+      getOpenCurrentCareHomeMedicationAlerts(),
+    ])
+
+    careAttentionItems = buildCareAttentionItems({
+      residents,
+      openTasks,
+      openIncidents,
+      openMedicationAlerts,
+    })
+
+    operationalQueueItems = buildOperationalQueueItems({
+      residents,
+      openTasks,
+      openIncidents,
+      openMedicationAlerts,
+    })
+  } catch (error) {
+    console.error('Failed to load operational queue for dashboard:', error)
+  }
+
   return (
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
@@ -106,6 +136,8 @@ export default async function DashboardPage() {
           medicationAlertsCount={medicationAlertsCount}
           recentIncidentsCount={recentIncidentsCount}
           recentActivityItems={recentActivityItems}
+          careAttentionItems={careAttentionItems}
+          operationalQueueItems={operationalQueueItems}
         />
       </div>
     </div>
@@ -246,6 +278,283 @@ function buildRecentActivityItems({
     .filter((item) => item.timestamp)
     .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
     .slice(0, 5)
+}
+
+function buildCareAttentionItems({
+  residents,
+  openTasks,
+  openIncidents,
+  openMedicationAlerts,
+}: {
+  residents: ResidentRecord[]
+  openTasks: TaskRecord[]
+  openIncidents: IncidentRecord[]
+  openMedicationAlerts: MedicationAlertRecord[]
+}): DashboardCareAttentionItem[] {
+  const residentNameById = new Map(residents.map((resident) => [resident.id, resident.name]))
+
+  const taskItems: DashboardCareAttentionItem[] = openTasks
+    .filter((task) => task.priority === 'urgent' || task.priority === 'high')
+    .map((task) => ({
+      id: `task-${task.id}`,
+      source: 'task',
+      title: task.title,
+      subtitle: [
+        task.category ? `Task: ${task.category}` : 'Open task',
+        task.dueAt ? `Due ${formatShortDate(task.dueAt)}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      residentName: task.residentId ? residentNameById.get(task.residentId) ?? null : null,
+      severity: task.priority === 'urgent' ? 'urgent' : 'warning',
+      href: '/tasks',
+    }))
+
+  const incidentItems: DashboardCareAttentionItem[] = openIncidents.map((incident) => ({
+    id: `incident-${incident.id}`,
+    source: 'incident',
+    title: incident.incidentType,
+    subtitle: [
+      incident.status === 'reviewing' ? 'Review in progress' : 'Open incident',
+      incident.location || null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    residentName: incident.residentId ? residentNameById.get(incident.residentId) ?? null : null,
+    severity:
+      incident.severity === 'critical' || incident.severity === 'high'
+        ? 'urgent'
+        : incident.status === 'reviewing' || incident.followUpRequired
+          ? 'warning'
+          : 'watch',
+    href: '/incidents',
+  }))
+
+  const alertItems: DashboardCareAttentionItem[] = openMedicationAlerts.map((alert) => ({
+    id: `medication-alert-${alert.id}`,
+    source: 'medication_alert',
+    title: medicationAlertLabel(alert.alertType),
+    subtitle: [
+      alert.status === 'reviewing' ? 'Review required' : 'Open medication alert',
+      alert.message,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    residentName: alert.residentId ? residentNameById.get(alert.residentId) ?? null : null,
+    severity:
+      alert.severity === 'critical' || alert.severity === 'high'
+        ? 'urgent'
+        : alert.severity === 'medium' || alert.status === 'reviewing'
+          ? 'warning'
+          : 'watch',
+    href: '/medications',
+  }))
+
+  return [...taskItems, ...incidentItems, ...alertItems]
+    .sort((left, right) => {
+      const severityDelta = careAttentionSeverityRank(left.severity) - careAttentionSeverityRank(right.severity)
+      if (severityDelta !== 0) return severityDelta
+      return left.title.localeCompare(right.title)
+    })
+    .slice(0, 3)
+}
+
+function buildOperationalQueueItems({
+  residents,
+  openTasks,
+  openIncidents,
+  openMedicationAlerts,
+}: {
+  residents: ResidentRecord[]
+  openTasks: TaskRecord[]
+  openIncidents: IncidentRecord[]
+  openMedicationAlerts: MedicationAlertRecord[]
+}): DashboardOperationalQueueItem[] {
+  const residentNameById = new Map(residents.map((resident) => [resident.id, resident.name]))
+  const now = new Date()
+  const endOfToday = new Date(now)
+  endOfToday.setHours(23, 59, 59, 999)
+
+  const taskItems: DashboardOperationalQueueItem[] = openTasks
+    .filter((task) => shouldIncludeTaskInOperationalQueue(task, now, endOfToday))
+    .map((task) => {
+      const dueDate = task.dueAt ? new Date(task.dueAt) : null
+      const isOverdue = dueDate ? dueDate.getTime() < now.getTime() : false
+      const isDueSoon = dueDate ? dueDate.getTime() <= endOfToday.getTime() : false
+      const isInProgress = task.status === 'in_progress'
+
+      return {
+        id: `task-${task.id}`,
+        source: 'task',
+        title: task.title,
+        subtitle: [
+          task.residentId ? residentNameById.get(task.residentId) : null,
+          task.category ? `Task: ${task.category}` : null,
+          `Priority: ${task.priority}`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        dueLabel: dueDate ? `Due ${formatQueueDateTime(task.dueAt as string)}` : undefined,
+        status: isOverdue ? 'overdue' : isInProgress ? 'in_progress' : 'upcoming',
+        severity: isOverdue || task.priority === 'urgent' ? 'urgent' : isDueSoon || task.priority === 'high' ? 'warning' : 'normal',
+        href: '/tasks',
+      }
+    })
+
+  const incidentItems: DashboardOperationalQueueItem[] = openIncidents.map((incident) => ({
+    id: `incident-${incident.id}`,
+    source: 'incident',
+    title: incident.incidentType,
+    subtitle: [
+      incident.residentId ? residentNameById.get(incident.residentId) : null,
+      incident.location || null,
+      incident.status === 'reviewing' ? 'Needs review' : 'Open incident',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    dueLabel: `Logged ${formatQueueDateTime(incident.occurredAt)}`,
+    status: 'review',
+    severity: incident.severity === 'critical' || incident.severity === 'high' ? 'urgent' : 'warning',
+    href: '/incidents',
+  }))
+
+  const medicationAlertItems: DashboardOperationalQueueItem[] = openMedicationAlerts
+    .filter((alert) => shouldIncludeAlertInOperationalQueue(alert, now, endOfToday))
+    .map((alert) => {
+      const dueDate = alert.dueAt ? new Date(alert.dueAt) : null
+      const isOverdue = dueDate ? dueDate.getTime() < now.getTime() : false
+      const isDueSoon = dueDate ? dueDate.getTime() <= endOfToday.getTime() : false
+
+      return {
+        id: `medication-alert-${alert.id}`,
+        source: 'medication_alert',
+        title: medicationAlertLabel(alert.alertType),
+        subtitle: [
+          alert.residentId ? residentNameById.get(alert.residentId) : null,
+          alert.message,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        dueLabel: alert.dueAt ? `Due ${formatQueueDateTime(alert.dueAt)}` : `Logged ${formatQueueDateTime(alert.createdAt)}`,
+        status: isOverdue ? 'overdue' : alert.status === 'reviewing' ? 'review' : 'upcoming',
+        severity:
+          isOverdue || alert.severity === 'critical' || alert.severity === 'high'
+            ? 'urgent'
+            : isDueSoon || alert.status === 'reviewing' || alert.severity === 'medium'
+              ? 'warning'
+              : 'normal',
+        href: '/medications',
+      }
+    })
+
+  return [...taskItems, ...incidentItems, ...medicationAlertItems]
+    .sort((left, right) => {
+      const priorityDelta = operationalQueuePriority(left) - operationalQueuePriority(right)
+      if (priorityDelta !== 0) return priorityDelta
+
+      const leftTime = extractQueueSortTime(left.dueLabel)
+      const rightTime = extractQueueSortTime(right.dueLabel)
+      return leftTime - rightTime
+    })
+    .slice(0, 6)
+}
+
+function shouldIncludeTaskInOperationalQueue(task: TaskRecord, now: Date, endOfToday: Date) {
+  if (task.priority === 'urgent' || task.priority === 'high') {
+    return true
+  }
+
+  if (!task.dueAt) {
+    return task.status === 'in_progress'
+  }
+
+  const dueDate = new Date(task.dueAt)
+  if (Number.isNaN(dueDate.getTime())) {
+    return task.status === 'in_progress'
+  }
+
+  return dueDate.getTime() <= endOfToday.getTime() || dueDate.getTime() < now.getTime() || task.status === 'in_progress'
+}
+
+function shouldIncludeAlertInOperationalQueue(alert: MedicationAlertRecord, now: Date, endOfToday: Date) {
+  if (alert.severity === 'critical' || alert.severity === 'high' || alert.status === 'reviewing') {
+    return true
+  }
+
+  if (!alert.dueAt) {
+    return alert.severity === 'medium'
+  }
+
+  const dueDate = new Date(alert.dueAt)
+  if (Number.isNaN(dueDate.getTime())) {
+    return alert.severity === 'medium'
+  }
+
+  return dueDate.getTime() <= endOfToday.getTime() || dueDate.getTime() < now.getTime() || alert.severity === 'medium'
+}
+
+function operationalQueuePriority(item: DashboardOperationalQueueItem) {
+  const statusRank =
+    item.status === 'overdue'
+      ? 0
+      : item.severity === 'urgent'
+        ? 1
+        : item.status === 'review'
+          ? 2
+          : item.status === 'in_progress'
+            ? 3
+            : item.severity === 'warning'
+              ? 4
+              : 5
+
+  return statusRank
+}
+
+function extractQueueSortTime(label?: string) {
+  if (!label) {
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  const normalized = label.replace(/^Due\s+|^Logged\s+/i, '')
+  const parsed = Date.parse(normalized)
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
+}
+
+function careAttentionSeverityRank(severity: DashboardCareAttentionItem['severity']) {
+  switch (severity) {
+    case 'urgent':
+      return 0
+    case 'warning':
+      return 1
+    default:
+      return 2
+  }
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatQueueDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const isToday = date.toDateString() === new Date().toDateString()
+
+  return isToday
+    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
 }
 
 function severityLabel(severity: IncidentRecord['severity']) {
