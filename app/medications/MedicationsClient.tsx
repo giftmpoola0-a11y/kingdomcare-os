@@ -77,6 +77,7 @@ export interface MedicationsClientProps {
   activeResidents: ResidentRecord[]
   canManage: boolean
   loadError: string | null
+  openMedicationAlertsCount: number
 }
 
 // â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -87,6 +88,7 @@ export default function MedicationsClient({
   activeResidents,
   canManage,
   loadError,
+  openMedicationAlertsCount,
 }: MedicationsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -281,7 +283,11 @@ export default function MedicationsClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        medicationAlertsCount={openMedicationAlertsCount}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
@@ -1206,6 +1212,7 @@ function formatDateTime(value: string) {
     minute: '2-digit',
   })
 }
+
 
 
 

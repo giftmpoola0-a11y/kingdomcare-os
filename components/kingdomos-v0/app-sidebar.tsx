@@ -33,10 +33,15 @@ function resolveItemBadge(
   label: string,
   defaultBadge: string | number | undefined,
   openTasksCount?: number,
+  medicationAlertsCount?: number,
   recentIncidentsCount?: number,
 ) {
   if (label === 'Tasks' && typeof openTasksCount === 'number') {
     return openTasksCount
+  }
+
+  if (label === 'Medications' && typeof medicationAlertsCount === 'number') {
+    return medicationAlertsCount
   }
 
   if (label === 'Incidents' && typeof recentIncidentsCount === 'number') {
@@ -50,11 +55,13 @@ export function AppSidebar({
   open,
   onClose,
   openTasksCount,
+  medicationAlertsCount,
   recentIncidentsCount,
 }: {
   open: boolean
   onClose: () => void
   openTasksCount?: number
+  medicationAlertsCount?: number
   recentIncidentsCount?: number
 }) {
   const pathname = usePathname()
@@ -114,6 +121,7 @@ export function AppSidebar({
                 item.label,
                 item.badge,
                 openTasksCount,
+                medicationAlertsCount,
                 recentIncidentsCount,
               )
 

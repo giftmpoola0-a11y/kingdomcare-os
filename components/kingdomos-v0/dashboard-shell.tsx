@@ -31,6 +31,7 @@ export function DashboardShell({
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         openTasksCount={openTasksCount}
+        medicationAlertsCount={medicationAlertsCount}
         recentIncidentsCount={recentIncidentsCount}
       />
 
