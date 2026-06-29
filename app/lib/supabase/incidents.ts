@@ -1,4 +1,4 @@
-import 'server-only'
+﻿import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
@@ -48,6 +48,7 @@ export interface IncidentRecord {
   description: string
   immediateAction: string
   followUpRequired: boolean
+  whoNotified: string
   followUpNotes: string
   reportedBy: string | null
   createdBy: string | null
@@ -67,6 +68,7 @@ export interface CreateIncidentInput {
   description: string
   immediateAction?: string | null
   followUpRequired?: boolean | null
+  whoNotified?: string | null
   followUpNotes?: string | null
   reportedBy?: string | null
 }
@@ -82,10 +84,13 @@ export interface UpdateIncidentInput {
   description?: string
   immediateAction?: string | null
   followUpRequired?: boolean | null
+  whoNotified?: string | null
   followUpNotes?: string | null
   reportedBy?: string | null
   resolvedAt?: string | null
 }
+
+const INCIDENT_METADATA_PREFIX = '[[incident_meta]]'
 
 export async function getCurrentCareHomeIncidents(): Promise<IncidentRecord[]> {
   const { supabase, careHomeId } = await getIncidentContext('read')
@@ -153,8 +158,8 @@ export async function createIncident(input: CreateIncidentInput): Promise<Incide
     location: normalizeOptionalText(input.location),
     description: input.description.trim(),
     immediate_action: normalizeOptionalText(input.immediateAction),
-    follow_up_required: Boolean(input.followUpRequired),
-    follow_up_notes: normalizeFollowUpNotes(input.followUpRequired, input.followUpNotes),
+    follow_up_required: normalizeFollowUpRequired(input.followUpRequired, input.followUpNotes),
+    follow_up_notes: serializeIncidentMeta(input.whoNotified, input.followUpNotes),
     reported_by: normalizeOptionalText(input.reportedBy) ?? userId,
     created_by: userId,
     deleted_at: null,
@@ -293,6 +298,8 @@ export async function softDeleteIncident(incidentId: string): Promise<void> {
 }
 
 export function mapIncidentRowToRecord(row: IncidentRow): IncidentRecord {
+  const meta = parseIncidentMeta(row.follow_up_notes)
+
   return {
     id: row.id,
     careHomeId: row.care_home_id,
@@ -305,7 +312,8 @@ export function mapIncidentRowToRecord(row: IncidentRow): IncidentRecord {
     description: row.description,
     immediateAction: row.immediate_action ?? '',
     followUpRequired: Boolean(row.follow_up_required),
-    followUpNotes: row.follow_up_notes ?? '',
+    whoNotified: meta.whoNotified,
+    followUpNotes: meta.followUpNotes,
     reportedBy: row.reported_by,
     createdBy: row.created_by,
     resolvedAt: row.resolved_at,
@@ -402,10 +410,10 @@ function buildIncidentUpdatePayload(input: UpdateIncidentInput) {
   }
 
   if ('followUpRequired' in input) {
-    payload.follow_up_required = Boolean(input.followUpRequired)
-    payload.follow_up_notes = normalizeFollowUpNotes(input.followUpRequired, input.followUpNotes)
-  } else if ('followUpNotes' in input) {
-    payload.follow_up_notes = normalizeOptionalText(input.followUpNotes)
+    payload.follow_up_required = normalizeFollowUpRequired(input.followUpRequired, input.followUpNotes)
+    payload.follow_up_notes = serializeIncidentMeta(input.whoNotified, input.followUpNotes)
+  } else if ('followUpNotes' in input || 'whoNotified' in input) {
+    payload.follow_up_notes = serializeIncidentMeta(input.whoNotified, input.followUpNotes)
   }
 
   if ('reportedBy' in input) {
@@ -433,15 +441,71 @@ function normalizeTimestamp(value: string | null | undefined) {
   return normalized ? normalized : null
 }
 
-function normalizeFollowUpNotes(
+function normalizeFollowUpRequired(
   followUpRequired: boolean | null | undefined,
   notes: string | null | undefined
 ) {
-  if (!followUpRequired) {
+  if (typeof followUpRequired === 'boolean') {
+    return followUpRequired
+  }
+
+  return Boolean(normalizeOptionalText(notes))
+}
+
+function parseIncidentMeta(value: string | null | undefined) {
+  const normalized = normalizeOptionalText(value)
+
+  if (!normalized) {
+    return {
+      whoNotified: '',
+      followUpNotes: '',
+    }
+  }
+
+  if (normalized.startsWith(INCIDENT_METADATA_PREFIX)) {
+    const payload = normalized.slice(INCIDENT_METADATA_PREFIX.length).trim()
+
+    try {
+      const parsed = JSON.parse(payload) as {
+        whoNotified?: unknown
+        followUpNotes?: unknown
+      }
+
+      return {
+        whoNotified:
+          typeof parsed?.whoNotified === 'string' ? parsed.whoNotified.trim() : '',
+        followUpNotes:
+          typeof parsed?.followUpNotes === 'string' ? parsed.followUpNotes.trim() : '',
+      }
+    } catch {
+      return {
+        whoNotified: '',
+        followUpNotes: normalized,
+      }
+    }
+  }
+
+  return {
+    whoNotified: '',
+    followUpNotes: normalized,
+  }
+}
+
+function serializeIncidentMeta(
+  whoNotified: string | null | undefined,
+  followUpNotes: string | null | undefined
+) {
+  const normalizedWhoNotified = normalizeOptionalText(whoNotified)
+  const normalizedFollowUpNotes = normalizeOptionalText(followUpNotes)
+
+  if (!normalizedWhoNotified && !normalizedFollowUpNotes) {
     return null
   }
 
-  return normalizeOptionalText(notes)
+  return `${INCIDENT_METADATA_PREFIX}\n${JSON.stringify({
+    whoNotified: normalizedWhoNotified ?? '',
+    followUpNotes: normalizedFollowUpNotes ?? '',
+  })}`
 }
 
 function normalizeIncidentSeverity(value: string | null | undefined): IncidentSeverity {
