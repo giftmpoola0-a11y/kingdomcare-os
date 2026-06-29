@@ -1,4 +1,4 @@
-import { Users, ListChecks, Pill, TriangleAlert, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react"
+﻿import { Users, ListChecks, Pill, TriangleAlert, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { kpis, type Kpi } from "@/lib/kingdomos-v0-dashboard-data"
 import { cn } from "@/lib/utils"
@@ -26,15 +26,22 @@ const trendIcon = {
 interface KpiCardsProps {
   activeResidentsCount?: number
   openTasksCount?: number
+  recentIncidentsCount?: number
 }
 
-export function KpiCards({ activeResidentsCount, openTasksCount }: KpiCardsProps) {
+export function KpiCards({
+  activeResidentsCount,
+  openTasksCount,
+  recentIncidentsCount,
+}: KpiCardsProps) {
   const resolvedKpis = kpis.map((kpi) =>
     kpi.label === "Active Residents" && typeof activeResidentsCount === "number"
       ? { ...kpi, value: String(activeResidentsCount) }
       : kpi.label === "Open Tasks" && typeof openTasksCount === "number"
         ? { ...kpi, value: String(openTasksCount) }
-        : kpi,
+        : kpi.label === "Recent Incidents" && typeof recentIncidentsCount === "number"
+          ? { ...kpi, value: String(recentIncidentsCount) }
+          : kpi,
   )
 
   return (

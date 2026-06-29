@@ -72,6 +72,7 @@ export interface IncidentsClientProps {
   activeResidents: ResidentRecord[]
   canManageIncidents: boolean
   loadError: string | null
+  recentIncidentsCount: number
 }
 
 export default function IncidentsClient({
@@ -79,6 +80,7 @@ export default function IncidentsClient({
   activeResidents,
   canManageIncidents,
   loadError,
+  recentIncidentsCount,
 }: IncidentsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -230,7 +232,11 @@ export default function IncidentsClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        recentIncidentsCount={recentIncidentsCount}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />

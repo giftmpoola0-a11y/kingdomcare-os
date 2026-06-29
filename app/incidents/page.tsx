@@ -47,6 +47,7 @@ export default async function IncidentsPage() {
           activeResidents={residents.filter((resident) => resident.status !== 'archived')}
           canManageIncidents={access.role === 'admin' || access.role === 'nurse'}
           loadError={loadError}
+          recentIncidentsCount={incidents.length}
         />
       </div>
     </div>

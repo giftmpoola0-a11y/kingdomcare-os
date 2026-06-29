@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -29,9 +29,18 @@ function isItemActive(pathname: string, label: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function resolveItemBadge(label: string, defaultBadge: string | number | undefined, openTasksCount?: number) {
+function resolveItemBadge(
+  label: string,
+  defaultBadge: string | number | undefined,
+  openTasksCount?: number,
+  recentIncidentsCount?: number,
+) {
   if (label === 'Tasks' && typeof openTasksCount === 'number') {
     return openTasksCount
+  }
+
+  if (label === 'Incidents' && typeof recentIncidentsCount === 'number') {
+    return recentIncidentsCount
   }
 
   return defaultBadge
@@ -41,10 +50,12 @@ export function AppSidebar({
   open,
   onClose,
   openTasksCount,
+  recentIncidentsCount,
 }: {
   open: boolean
   onClose: () => void
   openTasksCount?: number
+  recentIncidentsCount?: number
 }) {
   const pathname = usePathname()
 
@@ -99,7 +110,12 @@ export function AppSidebar({
             {navItems.map((item) => {
               const href = navHrefMap[item.label] ?? item.href
               const active = isItemActive(pathname, item.label)
-              const badge = resolveItemBadge(item.label, item.badge, openTasksCount)
+              const badge = resolveItemBadge(
+                item.label,
+                item.badge,
+                openTasksCount,
+                recentIncidentsCount,
+              )
 
               return (
                 <li key={item.label}>

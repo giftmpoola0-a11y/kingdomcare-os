@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { AppSidebar } from "@/components/kingdomos-v0/app-sidebar"
@@ -13,9 +13,14 @@ import { RecentActivity } from "@/components/kingdomos-v0/dashboard/recent-activ
 interface DashboardShellProps {
   activeResidentsCount?: number
   openTasksCount?: number
+  recentIncidentsCount?: number
 }
 
-export function DashboardShell({ activeResidentsCount, openTasksCount }: DashboardShellProps) {
+export function DashboardShell({
+  activeResidentsCount,
+  openTasksCount,
+  recentIncidentsCount,
+}: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -24,6 +29,7 @@ export function DashboardShell({ activeResidentsCount, openTasksCount }: Dashboa
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         openTasksCount={openTasksCount}
+        recentIncidentsCount={recentIncidentsCount}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -36,6 +42,7 @@ export function DashboardShell({ activeResidentsCount, openTasksCount }: Dashboa
             <KpiCards
               activeResidentsCount={activeResidentsCount}
               openTasksCount={openTasksCount}
+              recentIncidentsCount={recentIncidentsCount}
             />
           </div>
 
