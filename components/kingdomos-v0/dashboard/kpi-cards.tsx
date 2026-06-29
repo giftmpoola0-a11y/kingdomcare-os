@@ -26,12 +26,14 @@ const trendIcon = {
 interface KpiCardsProps {
   activeResidentsCount?: number
   openTasksCount?: number
+  medicationAlertsCount?: number
   recentIncidentsCount?: number
 }
 
 export function KpiCards({
   activeResidentsCount,
   openTasksCount,
+  medicationAlertsCount,
   recentIncidentsCount,
 }: KpiCardsProps) {
   const resolvedKpis = kpis.map((kpi) =>
@@ -39,9 +41,11 @@ export function KpiCards({
       ? { ...kpi, value: String(activeResidentsCount) }
       : kpi.label === "Open Tasks" && typeof openTasksCount === "number"
         ? { ...kpi, value: String(openTasksCount) }
-        : kpi.label === "Recent Incidents" && typeof recentIncidentsCount === "number"
-          ? { ...kpi, value: String(recentIncidentsCount) }
-          : kpi,
+        : kpi.label === "Medication Alerts" && typeof medicationAlertsCount === "number"
+          ? { ...kpi, value: String(medicationAlertsCount) }
+          : kpi.label === "Recent Incidents" && typeof recentIncidentsCount === "number"
+            ? { ...kpi, value: String(recentIncidentsCount) }
+            : kpi,
   )
 
   return (

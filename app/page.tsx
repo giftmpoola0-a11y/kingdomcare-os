@@ -2,10 +2,11 @@
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getRecentCurrentCareHomeIncidents } from '@/app/lib/supabase/incidents'
+import { getOpenCurrentCareHomeMedicationAlerts } from '@/app/lib/supabase/medications'
 import { getActiveCurrentCareHomeResidents } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import { getOpenCurrentCareHomeTasks } from '@/app/lib/supabase/tasks'
-import { getRecentCurrentCareHomeIncidents } from '@/app/lib/supabase/incidents'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-v0-sans',
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
 
   let activeResidentsCount = 0
   let openTasksCount = 0
+  let medicationAlertsCount = 0
   let recentIncidentsCount = 0
 
   try {
@@ -43,6 +45,13 @@ export default async function DashboardPage() {
   }
 
   try {
+    const openMedicationAlerts = await getOpenCurrentCareHomeMedicationAlerts()
+    medicationAlertsCount = openMedicationAlerts.length
+  } catch (error) {
+    console.error('Failed to load medication alerts count for dashboard:', error)
+  }
+
+  try {
     const recentIncidents = await getRecentCurrentCareHomeIncidents()
     recentIncidentsCount = recentIncidents.length
   } catch (error) {
@@ -55,6 +64,7 @@ export default async function DashboardPage() {
         <DashboardShell
           activeResidentsCount={activeResidentsCount}
           openTasksCount={openTasksCount}
+          medicationAlertsCount={medicationAlertsCount}
           recentIncidentsCount={recentIncidentsCount}
         />
       </div>

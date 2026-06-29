@@ -13,12 +13,14 @@ import { RecentActivity } from "@/components/kingdomos-v0/dashboard/recent-activ
 interface DashboardShellProps {
   activeResidentsCount?: number
   openTasksCount?: number
+  medicationAlertsCount?: number
   recentIncidentsCount?: number
 }
 
 export function DashboardShell({
   activeResidentsCount,
   openTasksCount,
+  medicationAlertsCount,
   recentIncidentsCount,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -42,6 +44,7 @@ export function DashboardShell({
             <KpiCards
               activeResidentsCount={activeResidentsCount}
               openTasksCount={openTasksCount}
+              medicationAlertsCount={medicationAlertsCount}
               recentIncidentsCount={recentIncidentsCount}
             />
           </div>
