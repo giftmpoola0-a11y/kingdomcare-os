@@ -8,13 +8,14 @@ import { KpiCards } from "@/components/kingdomos-v0/dashboard/kpi-cards"
 import { TodayGlance } from "@/components/kingdomos-v0/dashboard/today-glance"
 import { CareAttention } from "@/components/kingdomos-v0/dashboard/care-attention"
 import { StaffOnDuty } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
-import { RecentActivity } from "@/components/kingdomos-v0/dashboard/recent-activity"
+import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
 
 interface DashboardShellProps {
   activeResidentsCount?: number
   openTasksCount?: number
   medicationAlertsCount?: number
   recentIncidentsCount?: number
+  recentActivityItems?: DashboardRecentActivityItem[]
 }
 
 export function DashboardShell({
@@ -22,6 +23,7 @@ export function DashboardShell({
   openTasksCount,
   medicationAlertsCount,
   recentIncidentsCount,
+  recentActivityItems,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -58,7 +60,7 @@ export function DashboardShell({
 
             <div className="flex flex-col gap-6">
               <StaffOnDuty />
-              <RecentActivity />
+              <RecentActivity items={recentActivityItems} />
             </div>
           </div>
         </main>

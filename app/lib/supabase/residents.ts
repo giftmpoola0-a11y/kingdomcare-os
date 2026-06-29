@@ -1,4 +1,4 @@
-import 'server-only'
+﻿import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DemoResident, ResidentStatus } from '@/app/lib/reportTypes'
@@ -13,6 +13,14 @@ type TypedSupabaseClient = SupabaseClient<Database>
 
 export interface ResidentRecord extends DemoResident {
   status: ResidentStatus
+}
+
+export interface ResidentActivityRecord {
+  id: string
+  name: string
+  status: ResidentStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export type CreateResidentInput = Omit<ResidentRecord, 'id' | 'status'> & {
@@ -62,6 +70,30 @@ export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecor
   }
 
   return (data ?? []).map(mapResidentRowToRecord)
+}
+
+export async function getRecentCurrentCareHomeResidents(limit = 10): Promise<ResidentActivityRecord[]> {
+  const { supabase, careHomeId } = await getResidentContext('read')
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 50) : 10
+  const { data, error } = await supabase
+    .from('residents')
+    .select('*')
+    .eq('care_home_id', careHomeId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(safeLimit)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.full_name,
+    status: normalizeResidentStatus(row.status),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
 }
 
 export async function getResidentById(residentId: string): Promise<ResidentRecord | null> {
@@ -342,3 +374,6 @@ function serializePrimarySupportNeeds(value: string[]): string | null {
 function normalizeResidentStatus(status: string): ResidentStatus {
   return status === 'archived' ? 'archived' : 'active'
 }
+
+
+
