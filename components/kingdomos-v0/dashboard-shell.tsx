@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState } from "react"
 import { AppSidebar } from "@/components/kingdomos-v0/app-sidebar"
@@ -7,7 +7,7 @@ import { WelcomeHeader } from "@/components/kingdomos-v0/dashboard/welcome-heade
 import { KpiCards } from "@/components/kingdomos-v0/dashboard/kpi-cards"
 import { TodayGlance, type DashboardOperationalQueueItem } from "@/components/kingdomos-v0/dashboard/today-glance"
 import { CareAttention, type DashboardCareAttentionItem } from "@/components/kingdomos-v0/dashboard/care-attention"
-import { StaffOnDuty } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
+import { CareTeam, type DashboardCareTeamMember } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
 import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
 
 interface DashboardShellProps {
@@ -18,6 +18,7 @@ interface DashboardShellProps {
   recentActivityItems?: DashboardRecentActivityItem[]
   careAttentionItems?: DashboardCareAttentionItem[]
   operationalQueueItems?: DashboardOperationalQueueItem[]
+  careTeamMembers?: DashboardCareTeamMember[]
 }
 
 export function DashboardShell({
@@ -28,6 +29,7 @@ export function DashboardShell({
   recentActivityItems,
   careAttentionItems,
   operationalQueueItems,
+  careTeamMembers,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -63,7 +65,7 @@ export function DashboardShell({
             </div>
 
             <div className="flex flex-col gap-6">
-              <StaffOnDuty />
+              <CareTeam members={careTeamMembers} />
               <RecentActivity items={recentActivityItems} />
             </div>
           </div>

@@ -1,10 +1,11 @@
-﻿import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import type { DashboardCareAttentionItem } from '@/components/kingdomos-v0/dashboard/care-attention'
+import type { DashboardCareTeamMember } from '@/components/kingdomos-v0/dashboard/staff-on-duty'
 import type { DashboardRecentActivityItem } from '@/components/kingdomos-v0/dashboard/recent-activity'
 import type { DashboardOperationalQueueItem } from '@/components/kingdomos-v0/dashboard/today-glance'
-import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserAccess, normalizeMembershipRole } from '@/app/lib/supabase/access'
 import {
   getCurrentCareHomeIncidents,
   getOpenCurrentCareHomeIncidents,
@@ -44,6 +45,12 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
+  const membership = access.membership
+
+  if (!membership) {
+    redirect('/onboarding')
+  }
+
   let activeResidentsCount = 0
   let openTasksCount = 0
   let medicationAlertsCount = 0
@@ -51,6 +58,7 @@ export default async function DashboardPage() {
   let recentActivityItems: DashboardRecentActivityItem[] = []
   let careAttentionItems: DashboardCareAttentionItem[] = []
   let operationalQueueItems: DashboardOperationalQueueItem[] = []
+  let careTeamMembers: DashboardCareTeamMember[] = []
 
   try {
     const activeResidents = await getActiveCurrentCareHomeResidents()
@@ -78,6 +86,24 @@ export default async function DashboardPage() {
     recentIncidentsCount = Math.min(recentIncidents.length, 10)
   } catch (error) {
     console.error('Failed to load recent incidents count for dashboard:', error)
+  }
+
+  try {
+    const { data: careTeamData, error } = await supabase.rpc('get_care_home_staff', {
+      p_care_home_id: membership.careHomeId,
+    })
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    careTeamMembers = Array.isArray(careTeamData)
+      ? careTeamData
+          .map((member) => normalizeDashboardCareTeamMember(member))
+          .filter((member): member is DashboardCareTeamMember => member !== null)
+      : []
+  } catch (error) {
+    console.error('Failed to load care team members for dashboard:', error)
   }
 
   try {
@@ -138,10 +164,35 @@ export default async function DashboardPage() {
           recentActivityItems={recentActivityItems}
           careAttentionItems={careAttentionItems}
           operationalQueueItems={operationalQueueItems}
+          careTeamMembers={careTeamMembers}
         />
       </div>
     </div>
   )
+}
+
+function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMember | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const item = value as Record<string, unknown>
+  const role = normalizeMembershipRole(typeof item.role === 'string' ? item.role : null)
+
+  if (
+    typeof item.membership_id !== 'string' ||
+    typeof item.user_id !== 'string' ||
+    !role
+  ) {
+    return null
+  }
+
+  return {
+    id: item.membership_id,
+    fullName: typeof item.full_name === 'string' ? item.full_name : '',
+    email: typeof item.email === 'string' ? item.email : '',
+    role,
+  }
 }
 
 function buildRecentActivityItems({
