@@ -14,6 +14,7 @@ import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import { cn } from '@/lib/utils'
 import { createIncidentAction, deleteIncidentAction, resolveIncidentAction } from './actions'
 
@@ -72,7 +73,7 @@ export interface IncidentsClientProps {
   activeResidents: ResidentRecord[]
   canManageIncidents: boolean
   loadError: string | null
-  recentIncidentsCount: number
+  sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function IncidentsClient({
@@ -80,7 +81,7 @@ export default function IncidentsClient({
   activeResidents,
   canManageIncidents,
   loadError,
-  recentIncidentsCount,
+  sidebarBadgeCounts,
 }: IncidentsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -235,7 +236,7 @@ export default function IncidentsClient({
       <AppSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        recentIncidentsCount={recentIncidentsCount}
+        badgeCounts={sidebarBadgeCounts}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

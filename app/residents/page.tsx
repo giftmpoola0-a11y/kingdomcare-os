@@ -3,6 +3,10 @@ import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
+import {
+  EMPTY_SIDEBAR_BADGE_COUNTS,
+  getCurrentCareHomeSidebarBadgeCounts,
+} from '@/app/lib/supabase/sidebar-badge-counts'
 import ResidentsClient from './ResidentsClient'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -24,11 +28,18 @@ export default async function ResidentsPage() {
 
   let residents: ResidentRecord[] = []
   let loadError: string | null = null
+  let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
     residents = await getCurrentCareHomeResidents()
   } catch {
     loadError = 'Unable to load residents. Please refresh the page.'
+  }
+
+  try {
+    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+  } catch (error) {
+    console.error('Failed to load sidebar badge counts for residents page:', error)
   }
 
   return (
@@ -38,6 +49,7 @@ export default async function ResidentsPage() {
           initialResidents={residents}
           isAdmin={access.role === 'admin'}
           loadError={loadError}
+          sidebarBadgeCounts={sidebarBadgeCounts}
         />
       </div>
     </div>

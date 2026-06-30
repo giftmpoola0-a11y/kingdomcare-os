@@ -9,6 +9,10 @@ import {
   type MedicationRecord,
   type MedicationAlertRecord,
 } from '@/app/lib/supabase/medications'
+import {
+  EMPTY_SIDEBAR_BADGE_COUNTS,
+  getCurrentCareHomeSidebarBadgeCounts,
+} from '@/app/lib/supabase/sidebar-badge-counts'
 import MedicationsClient from './MedicationsClient'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -32,6 +36,7 @@ export default async function MedicationsPage() {
   let alerts: MedicationAlertRecord[] = []
   let residents: ResidentRecord[] = []
   let loadError: string | null = null
+  let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
     ;[medications, alerts, residents] = await Promise.all([
@@ -43,9 +48,11 @@ export default async function MedicationsPage() {
     loadError = 'Unable to load medications. Please refresh the page.'
   }
 
-  const openMedicationAlertsCount = alerts.filter(
-    (alert) => alert.status === 'open' || alert.status === 'reviewing',
-  ).length
+  try {
+    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+  } catch (error) {
+    console.error('Failed to load sidebar badge counts for medications page:', error)
+  }
 
   return (
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
@@ -56,7 +63,7 @@ export default async function MedicationsPage() {
           activeResidents={residents.filter((r) => r.status !== 'archived')}
           canManage={access.role === 'admin' || access.role === 'nurse'}
           loadError={loadError}
-          openMedicationAlertsCount={openMedicationAlertsCount}
+          sidebarBadgeCounts={sidebarBadgeCounts}
         />
       </div>
     </div>

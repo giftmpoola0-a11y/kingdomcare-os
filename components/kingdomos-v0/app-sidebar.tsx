@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { X, LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navItems } from '@/lib/kingdomos-v0-dashboard-data'
+import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 
 const navHrefMap: Record<string, string> = {
   Dashboard: '/',
@@ -32,20 +33,18 @@ function isItemActive(pathname: string, label: string) {
 function resolveItemBadge(
   label: string,
   defaultBadge: string | number | undefined,
-  openTasksCount?: number,
-  medicationAlertsCount?: number,
-  recentIncidentsCount?: number,
+  badgeCounts?: SidebarBadgeCounts,
 ) {
-  if (label === 'Tasks' && typeof openTasksCount === 'number') {
-    return openTasksCount
+  if (label === 'Tasks' && typeof badgeCounts?.openTasksCount === 'number') {
+    return badgeCounts.openTasksCount
   }
 
-  if (label === 'Medications' && typeof medicationAlertsCount === 'number') {
-    return medicationAlertsCount
+  if (label === 'Medications' && typeof badgeCounts?.medicationAlertsCount === 'number') {
+    return badgeCounts.medicationAlertsCount
   }
 
-  if (label === 'Incidents' && typeof recentIncidentsCount === 'number') {
-    return recentIncidentsCount
+  if (label === 'Incidents' && typeof badgeCounts?.recentIncidentsCount === 'number') {
+    return badgeCounts.recentIncidentsCount
   }
 
   return defaultBadge
@@ -54,15 +53,11 @@ function resolveItemBadge(
 export function AppSidebar({
   open,
   onClose,
-  openTasksCount,
-  medicationAlertsCount,
-  recentIncidentsCount,
+  badgeCounts,
 }: {
   open: boolean
   onClose: () => void
-  openTasksCount?: number
-  medicationAlertsCount?: number
-  recentIncidentsCount?: number
+  badgeCounts?: SidebarBadgeCounts
 }) {
   const pathname = usePathname()
 
@@ -117,13 +112,7 @@ export function AppSidebar({
             {navItems.map((item) => {
               const href = navHrefMap[item.label] ?? item.href
               const active = isItemActive(pathname, item.label)
-              const badge = resolveItemBadge(
-                item.label,
-                item.badge,
-                openTasksCount,
-                medicationAlertsCount,
-                recentIncidentsCount,
-              )
+              const badge = resolveItemBadge(item.label, item.badge, badgeCounts)
 
               return (
                 <li key={item.label}>

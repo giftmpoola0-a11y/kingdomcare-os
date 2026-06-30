@@ -8,6 +8,7 @@ import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
+import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import {
   TASK_CATEGORIES,
   TASK_PRIORITIES,
@@ -55,7 +56,7 @@ export interface TasksClientProps {
   activeResidents: ResidentRecord[]
   canManageTasks: boolean
   loadError: string | null
-  openTasksCount: number
+  sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function TasksClient({
@@ -63,7 +64,7 @@ export default function TasksClient({
   activeResidents,
   canManageTasks,
   loadError,
-  openTasksCount,
+  sidebarBadgeCounts,
 }: TasksClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -235,7 +236,7 @@ export default function TasksClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} openTasksCount={openTasksCount} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
@@ -623,4 +624,3 @@ function formatDue(dueAt: string | null) {
     minute: '2-digit',
   })
 }
-

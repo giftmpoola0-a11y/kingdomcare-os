@@ -26,6 +26,10 @@ import {
   type ResidentRecord,
 } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import {
+  EMPTY_SIDEBAR_BADGE_COUNTS,
+  getCurrentCareHomeSidebarBadgeCounts,
+} from '@/app/lib/supabase/sidebar-badge-counts'
 import { getCurrentCareHomeTasks, getOpenCurrentCareHomeTasks, type TaskRecord } from '@/app/lib/supabase/tasks'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -55,6 +59,7 @@ export default async function DashboardPage() {
   let openTasksCount = 0
   let medicationAlertsCount = 0
   let recentIncidentsCount = 0
+  let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
   let recentActivityItems: DashboardRecentActivityItem[] = []
   let careAttentionItems: DashboardCareAttentionItem[] = []
   let operationalQueueItems: DashboardOperationalQueueItem[] = []
@@ -68,24 +73,12 @@ export default async function DashboardPage() {
   }
 
   try {
-    const openTasks = await getOpenCurrentCareHomeTasks()
-    openTasksCount = openTasks.length
+    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+    openTasksCount = sidebarBadgeCounts.openTasksCount
+    medicationAlertsCount = sidebarBadgeCounts.medicationAlertsCount
+    recentIncidentsCount = sidebarBadgeCounts.recentIncidentsCount
   } catch (error) {
-    console.error('Failed to load open tasks count for dashboard:', error)
-  }
-
-  try {
-    const openMedicationAlerts = await getOpenCurrentCareHomeMedicationAlerts()
-    medicationAlertsCount = openMedicationAlerts.length
-  } catch (error) {
-    console.error('Failed to load medication alerts count for dashboard:', error)
-  }
-
-  try {
-    const recentIncidents = await getCurrentCareHomeIncidents()
-    recentIncidentsCount = Math.min(recentIncidents.length, 10)
-  } catch (error) {
-    console.error('Failed to load recent incidents count for dashboard:', error)
+    console.error('Failed to load sidebar badge counts for dashboard:', error)
   }
 
   try {
@@ -165,6 +158,7 @@ export default async function DashboardPage() {
           careAttentionItems={careAttentionItems}
           operationalQueueItems={operationalQueueItems}
           careTeamMembers={careTeamMembers}
+          sidebarBadgeCounts={sidebarBadgeCounts}
         />
       </div>
     </div>

@@ -24,6 +24,7 @@ import type {
   MedicationAlertSeverity,
 } from '@/app/lib/supabase/medications'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import {
   createMedicationAction,
   resumeMedicationAction,
@@ -77,7 +78,7 @@ export interface MedicationsClientProps {
   activeResidents: ResidentRecord[]
   canManage: boolean
   loadError: string | null
-  openMedicationAlertsCount: number
+  sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 // â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -88,7 +89,7 @@ export default function MedicationsClient({
   activeResidents,
   canManage,
   loadError,
-  openMedicationAlertsCount,
+  sidebarBadgeCounts,
 }: MedicationsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -286,7 +287,7 @@ export default function MedicationsClient({
       <AppSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        medicationAlertsCount={openMedicationAlertsCount}
+        badgeCounts={sidebarBadgeCounts}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">

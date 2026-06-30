@@ -9,6 +9,7 @@ import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import {
   archiveResidentAction,
   createResidentAction,
@@ -83,12 +84,14 @@ export interface ResidentsClientProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
   loadError: string | null
+  sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function ResidentsClient({
   initialResidents,
   isAdmin,
   loadError,
+  sidebarBadgeCounts,
 }: ResidentsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -249,7 +252,7 @@ export default function ResidentsClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />

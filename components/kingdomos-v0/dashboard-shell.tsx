@@ -9,6 +9,7 @@ import { TodayGlance, type DashboardOperationalQueueItem } from "@/components/ki
 import { CareAttention, type DashboardCareAttentionItem } from "@/components/kingdomos-v0/dashboard/care-attention"
 import { CareTeam, type DashboardCareTeamMember } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
 import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
+import type { SidebarBadgeCounts } from "@/app/lib/sidebar-badge-counts"
 
 interface DashboardShellProps {
   activeResidentsCount?: number
@@ -19,6 +20,7 @@ interface DashboardShellProps {
   careAttentionItems?: DashboardCareAttentionItem[]
   operationalQueueItems?: DashboardOperationalQueueItem[]
   careTeamMembers?: DashboardCareTeamMember[]
+  sidebarBadgeCounts?: SidebarBadgeCounts
 }
 
 export function DashboardShell({
@@ -30,18 +32,13 @@ export function DashboardShell({
   careAttentionItems,
   operationalQueueItems,
   careTeamMembers,
+  sidebarBadgeCounts,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        openTasksCount={openTasksCount}
-        medicationAlertsCount={medicationAlertsCount}
-        recentIncidentsCount={recentIncidentsCount}
-      />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
