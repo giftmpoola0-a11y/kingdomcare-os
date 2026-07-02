@@ -2,9 +2,16 @@ import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
-type TypedSupabaseClient = SupabaseClient<any>
+type TypedSupabaseClient = SupabaseClient<Database>
+type MedicationRow = Tables<'medications'>
+type MedicationAlertRow = Tables<'medication_alerts'>
+type MedicationInsert = TablesInsert<'medications'>
+type MedicationUpdate = TablesUpdate<'medications'>
+type MedicationAlertInsert = TablesInsert<'medication_alerts'>
+type MedicationAlertUpdate = TablesUpdate<'medication_alerts'>
 
 export type MedicationStatus = 'active' | 'paused' | 'discontinued' | 'archived'
 export type MedicationAlertType =
@@ -16,44 +23,6 @@ export type MedicationAlertType =
   | 'other'
 export type MedicationAlertSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type MedicationAlertStatus = 'open' | 'reviewing' | 'resolved' | 'archived'
-
-interface MedicationRow {
-  id: string
-  care_home_id: string
-  resident_id: string
-  medication_name: string
-  dosage: string | null
-  route: string | null
-  frequency: string | null
-  schedule_notes: string | null
-  start_date: string | null
-  end_date: string | null
-  prescribing_doctor: string | null
-  pharmacy: string | null
-  status: string
-  created_by: string | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-}
-
-interface MedicationAlertRow {
-  id: string
-  care_home_id: string
-  resident_id: string | null
-  medication_id: string | null
-  alert_type: string
-  severity: string
-  status: string
-  message: string
-  due_at: string | null
-  resolved_at: string | null
-  resolved_by: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-}
 
 interface MedicationAccessContext {
   access: CurrentUserAccess
@@ -164,7 +133,7 @@ export async function getCurrentCareHomeMedications(): Promise<MedicationRecord[
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapMedicationRowToRecord(row as MedicationRow))
+  return (data ?? []).map((row) => mapMedicationRowToRecord(row))
 }
 
 export async function getActiveCurrentCareHomeMedications(): Promise<MedicationRecord[]> {
@@ -181,12 +150,12 @@ export async function getActiveCurrentCareHomeMedications(): Promise<MedicationR
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapMedicationRowToRecord(row as MedicationRow))
+  return (data ?? []).map((row) => mapMedicationRowToRecord(row))
 }
 
 export async function createMedication(input: CreateMedicationInput): Promise<MedicationRecord> {
   const { supabase, careHomeId, userId } = await getMedicationContext('manage')
-  const payload = {
+  const payload: MedicationInsert = {
     care_home_id: careHomeId,
     resident_id: input.residentId,
     medication_name: input.medicationName.trim(),
@@ -209,7 +178,7 @@ export async function createMedication(input: CreateMedicationInput): Promise<Me
     throw new Error(error.message)
   }
 
-  return mapMedicationRowToRecord(data as MedicationRow)
+  return mapMedicationRowToRecord(data)
 }
 
 export async function updateMedication(input: UpdateMedicationInput): Promise<MedicationRecord> {
@@ -243,7 +212,7 @@ export async function updateMedication(input: UpdateMedicationInput): Promise<Me
     throw new Error('Medication not found.')
   }
 
-  return mapMedicationRowToRecord(data as MedicationRow)
+  return mapMedicationRowToRecord(data)
 }
 
 export async function pauseMedication(medicationId: string): Promise<MedicationRecord> {
@@ -265,7 +234,7 @@ export async function pauseMedication(medicationId: string): Promise<MedicationR
     throw new Error('Medication not found.')
   }
 
-  return mapMedicationRowToRecord(data as MedicationRow)
+  return mapMedicationRowToRecord(data)
 }
 
 export async function discontinueMedication(medicationId: string): Promise<MedicationRecord> {
@@ -287,7 +256,7 @@ export async function discontinueMedication(medicationId: string): Promise<Medic
     throw new Error('Medication not found.')
   }
 
-  return mapMedicationRowToRecord(data as MedicationRow)
+  return mapMedicationRowToRecord(data)
 }
 
 export async function archiveMedication(medicationId: string): Promise<MedicationRecord> {
@@ -309,7 +278,7 @@ export async function archiveMedication(medicationId: string): Promise<Medicatio
     throw new Error('Medication not found.')
   }
 
-  return mapMedicationRowToRecord(data as MedicationRow)
+  return mapMedicationRowToRecord(data)
 }
 
 export async function softDeleteMedication(medicationId: string): Promise<void> {
@@ -368,7 +337,7 @@ export async function getCurrentCareHomeMedicationAlerts(): Promise<MedicationAl
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row as MedicationAlertRow))
+  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row))
 }
 
 export async function getOpenCurrentCareHomeMedicationAlerts(): Promise<MedicationAlertRecord[]> {
@@ -385,7 +354,7 @@ export async function getOpenCurrentCareHomeMedicationAlerts(): Promise<Medicati
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row as MedicationAlertRow))
+  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row))
 }
 
 export async function getMedicationAlertsRequiringReview(): Promise<MedicationAlertRecord[]> {
@@ -402,12 +371,12 @@ export async function getMedicationAlertsRequiringReview(): Promise<MedicationAl
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row as MedicationAlertRow))
+  return (data ?? []).map((row) => mapMedicationAlertRowToRecord(row))
 }
 
 export async function createMedicationAlert(input: CreateMedicationAlertInput): Promise<MedicationAlertRecord> {
   const { supabase, careHomeId, userId } = await getMedicationContext('manage')
-  const payload = {
+  const payload: MedicationAlertInsert = {
     care_home_id: careHomeId,
     resident_id: normalizeOptionalText(input.residentId),
     medication_id: normalizeOptionalText(input.medicationId),
@@ -426,7 +395,7 @@ export async function createMedicationAlert(input: CreateMedicationAlertInput): 
     throw new Error(error.message)
   }
 
-  return mapMedicationAlertRowToRecord(data as MedicationAlertRow)
+  return mapMedicationAlertRowToRecord(data)
 }
 
 export async function updateMedicationAlert(input: UpdateMedicationAlertInput): Promise<MedicationAlertRecord> {
@@ -460,7 +429,7 @@ export async function updateMedicationAlert(input: UpdateMedicationAlertInput): 
     throw new Error('Medication alert not found.')
   }
 
-  return mapMedicationAlertRowToRecord(data as MedicationAlertRow)
+  return mapMedicationAlertRowToRecord(data)
 }
 
 export async function resolveMedicationAlert(
@@ -489,7 +458,7 @@ export async function resolveMedicationAlert(
     throw new Error('Medication alert not found.')
   }
 
-  return mapMedicationAlertRowToRecord(data as MedicationAlertRow)
+  return mapMedicationAlertRowToRecord(data)
 }
 
 export async function archiveMedicationAlert(alertId: string): Promise<MedicationAlertRecord> {
@@ -511,7 +480,7 @@ export async function archiveMedicationAlert(alertId: string): Promise<Medicatio
     throw new Error('Medication alert not found.')
   }
 
-  return mapMedicationAlertRowToRecord(data as MedicationAlertRow)
+  return mapMedicationAlertRowToRecord(data)
 }
 
 export async function softDeleteMedicationAlert(alertId: string): Promise<void> {
@@ -655,7 +624,7 @@ async function getMedicationRowById(
     throw new Error(error.message)
   }
 
-  return data as MedicationRow | null
+  return data
 }
 
 async function getMedicationAlertRowById(
@@ -675,15 +644,15 @@ async function getMedicationAlertRowById(
     throw new Error(error.message)
   }
 
-  return data as MedicationAlertRow | null
+  return data
 }
 
 // ============================================================
 // Update payload builders
 // ============================================================
 
-function buildMedicationUpdatePayload(input: UpdateMedicationInput) {
-  const payload: Record<string, string | null> = {}
+function buildMedicationUpdatePayload(input: UpdateMedicationInput): MedicationUpdate {
+  const payload: MedicationUpdate = {}
 
   if ('medicationName' in input && typeof input.medicationName === 'string') {
     payload.medication_name = input.medicationName.trim()
@@ -728,8 +697,8 @@ function buildMedicationUpdatePayload(input: UpdateMedicationInput) {
   return payload
 }
 
-function buildMedicationAlertUpdatePayload(input: UpdateMedicationAlertInput) {
-  const payload: Record<string, string | null> = {}
+function buildMedicationAlertUpdatePayload(input: UpdateMedicationAlertInput): MedicationAlertUpdate {
+  const payload: MedicationAlertUpdate = {}
 
   if ('alertType' in input && input.alertType) {
     payload.alert_type = normalizeMedicationAlertType(input.alertType)

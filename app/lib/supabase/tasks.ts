@@ -3,31 +3,18 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
 import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
-type TypedSupabaseClient = SupabaseClient<any>
+type TypedSupabaseClient = SupabaseClient<Database>
+type TaskRow = Tables<'tasks'>
+type TaskInsert = TablesInsert<'tasks'>
+type TaskUpdate = TablesUpdate<'tasks'>
 
 export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'archived'
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 const TASK_CATEGORY_MARKER = /^\[\[category:(.+?)\]\]\n?/i
-
-interface TaskRow {
-  id: string
-  care_home_id: string
-  resident_id: string | null
-  title: string
-  description: string | null
-  status: string
-  priority: string
-  due_at: string | null
-  assigned_to: string | null
-  created_by: string | null
-  completed_at: string | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-}
 
 interface TaskAccessContext {
   access: CurrentUserAccess
@@ -90,7 +77,7 @@ export async function getCurrentCareHomeTasks(): Promise<TaskRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapTaskRowToRecord(row as TaskRow))
+  return (data ?? []).map((row) => mapTaskRowToRecord(row))
 }
 
 export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
@@ -108,17 +95,17 @@ export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapTaskRowToRecord(row as TaskRow))
+  return (data ?? []).map((row) => mapTaskRowToRecord(row))
 }
 
 export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
   const { supabase, careHomeId, userId } = await getTaskContext('write')
-  const payload = {
+  const payload: TaskInsert = {
     care_home_id: careHomeId,
     resident_id: normalizeOptionalText(input.residentId),
     title: input.title.trim(),
     description: serializeTaskDescription(input.category, input.description),
-    status: 'open' as TaskStatus,
+    status: 'open',
     priority: normalizeTaskPriority(input.priority),
     due_at: normalizeOptionalText(input.dueAt),
     assigned_to: normalizeOptionalText(input.assignedTo),
@@ -132,7 +119,7 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
     throw new Error(error.message)
   }
 
-  return mapTaskRowToRecord(data as TaskRow)
+  return mapTaskRowToRecord(data)
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
@@ -167,7 +154,7 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data as TaskRow)
+  return mapTaskRowToRecord(data)
 }
 
 export async function completeTask(taskId: string): Promise<TaskRecord> {
@@ -192,7 +179,7 @@ export async function completeTask(taskId: string): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data as TaskRow)
+  return mapTaskRowToRecord(data)
 }
 
 export async function archiveTask(taskId: string): Promise<TaskRecord> {
@@ -217,7 +204,7 @@ export async function archiveTask(taskId: string): Promise<TaskRecord> {
     throw new Error('Task not found.')
   }
 
-  return mapTaskRowToRecord(data as TaskRow)
+  return mapTaskRowToRecord(data)
 }
 
 export async function softDeleteTask(taskId: string): Promise<void> {
@@ -333,11 +320,11 @@ async function getTaskRowById(
     throw new Error(error.message)
   }
 
-  return data as TaskRow | null
+  return data
 }
 
-function buildTaskUpdatePayload(input: UpdateTaskInput, existingTask: TaskRow | null) {
-  const payload: Record<string, string | null> = {}
+function buildTaskUpdatePayload(input: UpdateTaskInput, existingTask: TaskRow | null): TaskUpdate {
+  const payload: TaskUpdate = {}
 
   if ('residentId' in input) {
     payload.resident_id = normalizeOptionalText(input.residentId)

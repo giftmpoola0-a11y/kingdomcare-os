@@ -1,34 +1,17 @@
-﻿import 'server-only'
+import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
-type TypedSupabaseClient = SupabaseClient<any>
+type TypedSupabaseClient = SupabaseClient<Database>
+type IncidentRow = Tables<'incidents'>
+type IncidentInsert = TablesInsert<'incidents'>
+type IncidentUpdate = TablesUpdate<'incidents'>
 
 export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical'
 export type IncidentStatus = 'open' | 'reviewing' | 'resolved' | 'archived'
-
-interface IncidentRow {
-  id: string
-  care_home_id: string
-  resident_id: string | null
-  incident_type: string
-  severity: string
-  status: string
-  occurred_at: string
-  location: string | null
-  description: string
-  immediate_action: string | null
-  follow_up_required: boolean
-  follow_up_notes: string | null
-  reported_by: string | null
-  created_by: string | null
-  resolved_at: string | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-}
 
 interface IncidentAccessContext {
   access: CurrentUserAccess
@@ -106,7 +89,7 @@ export async function getCurrentCareHomeIncidents(): Promise<IncidentRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapIncidentRowToRecord(row as IncidentRow))
+  return (data ?? []).map((row) => mapIncidentRowToRecord(row))
 }
 
 export async function getOpenCurrentCareHomeIncidents(): Promise<IncidentRecord[]> {
@@ -124,7 +107,7 @@ export async function getOpenCurrentCareHomeIncidents(): Promise<IncidentRecord[
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapIncidentRowToRecord(row as IncidentRow))
+  return (data ?? []).map((row) => mapIncidentRowToRecord(row))
 }
 
 export async function getRecentCurrentCareHomeIncidents(limit = 10): Promise<IncidentRecord[]> {
@@ -143,12 +126,12 @@ export async function getRecentCurrentCareHomeIncidents(limit = 10): Promise<Inc
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((row) => mapIncidentRowToRecord(row as IncidentRow))
+  return (data ?? []).map((row) => mapIncidentRowToRecord(row))
 }
 
 export async function createIncident(input: CreateIncidentInput): Promise<IncidentRecord> {
   const { supabase, careHomeId, userId } = await getIncidentContext('write')
-  const payload = {
+  const payload: IncidentInsert = {
     care_home_id: careHomeId,
     resident_id: normalizeOptionalText(input.residentId),
     incident_type: input.incidentType.trim(),
@@ -171,7 +154,7 @@ export async function createIncident(input: CreateIncidentInput): Promise<Incide
     throw new Error(error.message)
   }
 
-  return mapIncidentRowToRecord(data as IncidentRow)
+  return mapIncidentRowToRecord(data)
 }
 
 export async function updateIncident(input: UpdateIncidentInput): Promise<IncidentRecord> {
@@ -205,7 +188,7 @@ export async function updateIncident(input: UpdateIncidentInput): Promise<Incide
     throw new Error('Incident not found.')
   }
 
-  return mapIncidentRowToRecord(data as IncidentRow)
+  return mapIncidentRowToRecord(data)
 }
 
 export async function resolveIncident(incidentId: string): Promise<IncidentRecord> {
@@ -230,7 +213,7 @@ export async function resolveIncident(incidentId: string): Promise<IncidentRecor
     throw new Error('Incident not found.')
   }
 
-  return mapIncidentRowToRecord(data as IncidentRow)
+  return mapIncidentRowToRecord(data)
 }
 
 export async function archiveIncident(incidentId: string): Promise<IncidentRecord> {
@@ -255,7 +238,7 @@ export async function archiveIncident(incidentId: string): Promise<IncidentRecor
     throw new Error('Incident not found.')
   }
 
-  return mapIncidentRowToRecord(data as IncidentRow)
+  return mapIncidentRowToRecord(data)
 }
 
 export async function softDeleteIncident(incidentId: string): Promise<void> {
@@ -371,11 +354,11 @@ async function getIncidentRowById(
     throw new Error(error.message)
   }
 
-  return data as IncidentRow | null
+  return data
 }
 
-function buildIncidentUpdatePayload(input: UpdateIncidentInput) {
-  const payload: Record<string, string | boolean | null> = {}
+function buildIncidentUpdatePayload(input: UpdateIncidentInput): IncidentUpdate {
+  const payload: IncidentUpdate = {}
 
   if ('residentId' in input) {
     payload.resident_id = normalizeOptionalText(input.residentId)
@@ -394,7 +377,10 @@ function buildIncidentUpdatePayload(input: UpdateIncidentInput) {
   }
 
   if ('occurredAt' in input) {
-    payload.occurred_at = normalizeTimestamp(input.occurredAt)
+    const occurredAt = normalizeTimestamp(input.occurredAt)
+    if (occurredAt) {
+      payload.occurred_at = occurredAt
+    }
   }
 
   if ('location' in input) {
@@ -515,3 +501,4 @@ function normalizeIncidentSeverity(value: string | null | undefined): IncidentSe
 function normalizeIncidentStatus(value: string | null | undefined): IncidentStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
+
