@@ -352,7 +352,7 @@ function NewShiftContent() {
                 saved ? (
                   <div className="space-y-3">
                     <p className="rounded-xl bg-emerald-50 py-3 text-center text-sm font-semibold text-emerald-700">
-                      ✓ Saved to Reports page
+                      ✓ Report saved to this device
                     </p>
                     <button
                       type="button"

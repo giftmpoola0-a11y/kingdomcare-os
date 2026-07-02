@@ -1,5 +1,8 @@
 import type { SavedReport } from '@/app/lib/reportTypes'
 
+// Backlog: /reports now shows the real Supabase operational summary, so reports
+// saved here are no longer viewable anywhere in the app. Needs migration or a
+// separate legacy viewer route.
 const STORAGE_KEY = 'kingdomcare_reports'
 const SCHEMA_VERSION = 1
 
