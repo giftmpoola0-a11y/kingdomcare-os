@@ -42,11 +42,15 @@ export default function MedicationReminderWatcher() {
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    if (typeof Notification === 'undefined') {
-      setNotifPermission('unsupported')
-    } else {
-      setNotifPermission(Notification.permission)
-    }
+    const timeout = window.setTimeout(() => {
+      if (typeof Notification === 'undefined') {
+        setNotifPermission('unsupported')
+      } else {
+        setNotifPermission(Notification.permission)
+      }
+    }, 0)
+
+    return () => window.clearTimeout(timeout)
   }, [])
 
   const check = useCallback(() => {
@@ -74,9 +78,13 @@ export default function MedicationReminderWatcher() {
   }, [])
 
   useEffect(() => {
-    check()
+    const timeout = window.setTimeout(check, 0)
     const interval = setInterval(check, 30_000)
-    return () => clearInterval(interval)
+
+    return () => {
+      window.clearTimeout(timeout)
+      clearInterval(interval)
+    }
   }, [check])
 
   function handleMarkStatus(id: string, status: string) {

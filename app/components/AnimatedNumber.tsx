@@ -14,8 +14,8 @@ export default function AnimatedNumber({ value, duration = 700 }: AnimatedNumber
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced || value === 0) {
-      setDisplayed(value)
-      return
+      rafRef.current = requestAnimationFrame(() => setDisplayed(value))
+      return () => cancelAnimationFrame(rafRef.current)
     }
 
     const start = performance.now()
