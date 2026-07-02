@@ -90,40 +90,43 @@ export default function ShiftsClient({
             ) : (
               <div className="mt-6 space-y-4">
                 {shiftReports.map((report) => (
-                  <article
+                  <Link
                     key={report.id}
-                    className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
+                    href={`/shifts/${report.id}`}
+                    className="block rounded-2xl border border-border bg-background/60 p-4 transition-colors hover:bg-background/80 sm:p-5"
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {report.residentName}
-                          </h3>
-                          <span className="rounded-full bg-indigo-500/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200 ring-1 ring-indigo-400/20">
-                            {report.shiftType}
-                          </span>
+                    <article>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              {report.residentName}
+                            </h3>
+                            <span className="rounded-full bg-indigo-500/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200 ring-1 ring-indigo-400/20">
+                              {report.shiftType}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                            {truncateSummary(report.summary)}
+                          </p>
                         </div>
-                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                          {truncateSummary(report.summary)}
-                        </p>
+
+                        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-muted-foreground">
+                          <FileClock className="size-4" />
+                          <span>{formatCreatedAt(report.createdAt)}</span>
+                        </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-muted-foreground">
-                        <FileClock className="size-4" />
-                        <span>{formatCreatedAt(report.createdAt)}</span>
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
+                          Shift date: {formatShiftDate(report.shiftDate)}
+                        </span>
+                        <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
+                          Saved: {formatSavedAt(report.createdAt)}
+                        </span>
                       </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
-                        Shift date: {formatShiftDate(report.shiftDate)}
-                      </span>
-                      <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
-                        Saved: {formatSavedAt(report.createdAt)}
-                      </span>
-                    </div>
-                  </article>
+                    </article>
+                  </Link>
                 ))}
               </div>
             )}

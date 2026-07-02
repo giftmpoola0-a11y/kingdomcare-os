@@ -65,6 +65,29 @@ export async function getCurrentCareHomeShiftReports(limit = 20): Promise<ShiftR
   return (data ?? []).map(mapShiftReportRowToRecord)
 }
 
+export async function getCurrentCareHomeShiftReportById(id: string): Promise<ShiftReportRecord | null> {
+  const normalizedId = id.trim()
+
+  if (!normalizedId) {
+    return null
+  }
+
+  const { supabase, careHomeId } = await getShiftReportContext()
+  const { data, error } = await supabase
+    .from('shift_reports')
+    .select('*')
+    .eq('id', normalizedId)
+    .eq('care_home_id', careHomeId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data ? mapShiftReportRowToRecord(data) : null
+}
+
 export async function createShiftReport(input: CreateShiftReportInput): Promise<ShiftReportRecord> {
   const { supabase, careHomeId, userId } = await getShiftReportContext()
   const payload: ShiftReportInsert = {
