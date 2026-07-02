@@ -27,7 +27,7 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       await signInUser(adminPage, E2E_TEST_EMAIL!, E2E_TEST_PASSWORD!, '/residents', diagnostics)
       await recordStep(adminPage, diagnostics, 'after sign-in')
       await expect(adminPage.getByRole('heading', { name: /resident profiles/i })).toBeVisible()
-      const addResidentButton = adminPage.getByRole('button', { name: /^\+ Add Resident$/ }).first()
+      const addResidentButton = adminPage.getByRole('button', { name: /^Add Resident$/i }).first()
       await expect(addResidentButton).toBeVisible()
 
       await addResidentButton.click()

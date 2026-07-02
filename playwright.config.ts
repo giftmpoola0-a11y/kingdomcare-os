@@ -41,16 +41,22 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    ...(process.env.PLAYWRIGHT_INCLUDE_FIREFOX === '1'
+      ? [
+          {
+            name: 'firefox',
+            use: { ...devices['Desktop Firefox'] },
+          },
+        ]
+      : []),
+    ...(process.env.PLAYWRIGHT_INCLUDE_WEBKIT === '1'
+      ? [
+          {
+            name: 'webkit',
+            use: { ...devices['Desktop Safari'] },
+          },
+        ]
+      : []),
 
     /* Test against mobile viewports. */
     // {
