@@ -219,7 +219,7 @@ export default function AppHeader({ className = '' }: { subtitle?: string; class
   }
 
   const userEmail = getCleanEmail(user?.email)
-  const visibleLinks = NAV_LINKS.filter((link) => link.href !== '/staff' || role === 'admin')
+  const visibleLinks = NAV_LINKS.filter((link) => link.href !== '/staff' || Boolean(role))
 
   return (
     <>
@@ -505,4 +505,3 @@ function formatRole(role: MembershipRole | null) {
   if (role === 'nurse') return 'Nurse access'
   return 'Caregiver access'
 }
-
