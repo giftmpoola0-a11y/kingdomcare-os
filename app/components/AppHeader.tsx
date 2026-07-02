@@ -38,6 +38,16 @@ function IcClipboard() {
   )
 }
 
+function IcClipboardList() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2.5" y="2" width="10" height="11.5" rx="1.5" />
+      <path d="M5.25 2h4.5" />
+      <path d="M5 6h5M5 8.5h5M5 11h3.5" />
+    </svg>
+  )
+}
+
 function IcDocument() {
   return (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -102,6 +112,7 @@ function IcTeam() {
 const NAV_LINKS = [
   { href: '/', label: 'Dashboard', icon: <IcDashboard /> },
   { href: '/residents', label: 'Residents', icon: <IcPerson /> },
+  { href: '/shifts', label: 'Shifts', icon: <IcClipboardList /> },
   { href: '/shifts/new', label: 'New Shift', icon: <IcClipboard /> },
   { href: '/reports', label: 'Reports', icon: <IcDocument /> },
   { href: '/incidents', label: 'Incidents', icon: <IcWarning /> },
@@ -494,3 +505,4 @@ function formatRole(role: MembershipRole | null) {
   if (role === 'nurse') return 'Nurse access'
   return 'Caregiver access'
 }
+

@@ -11,6 +11,7 @@ import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 const navHrefMap: Record<string, string> = {
   Dashboard: '/',
   Residents: '/residents',
+  Shifts: '/shifts',
   'New Shift': '/shifts/new',
   Reports: '/reports',
   Incidents: '/incidents',

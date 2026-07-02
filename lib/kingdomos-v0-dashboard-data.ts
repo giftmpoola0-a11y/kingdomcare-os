@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  ClipboardList,
   NotebookPen,
   FileBarChart,
   TriangleAlert,
@@ -22,6 +23,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "#", active: true },
   { label: "Residents", icon: Users, href: "#" },
+  { label: "Shifts", icon: ClipboardList, href: "#" },
   { label: "New Shift", icon: NotebookPen, href: "#" },
   { label: "Reports", icon: FileBarChart, href: "#" },
   { label: "Incidents", icon: TriangleAlert, href: "#", badge: 2 },
