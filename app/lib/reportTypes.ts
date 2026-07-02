@@ -3,17 +3,6 @@ export interface ReportField {
   value: string
 }
 
-export interface SavedReport {
-  id: string
-  createdAt: string
-  savedAt: string
-  residentName: string
-  shiftType: string
-  date: string
-  professionalSummary: string
-  fields: ReportField[]
-}
-
 export type ResidentStatus = 'active' | 'archived'
 
 export interface DemoResident {
