@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import {
   ArrowRight,
   ClipboardList,
@@ -23,6 +24,7 @@ import type { MedicationAlertRecord } from '@/app/lib/supabase/medications'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import type { ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
+import { completeCaregiverTaskAction } from './actions'
 
 interface StaffClientProps {
   role: MembershipRole
@@ -51,7 +53,28 @@ export default function StaffClient({
   loadError,
   incidentCreateHref,
 }: StaffClientProps) {
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isTaskActionPending, startTaskActionTransition] = useTransition()
+  const [taskActionError, setTaskActionError] = useState('')
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
+
+  function handleMarkTaskComplete(taskId: string) {
+    setTaskActionError('')
+    setPendingTaskId(taskId)
+
+    startTaskActionTransition(async () => {
+      const result = await completeCaregiverTaskAction(taskId)
+
+      if (!result.success) {
+        setTaskActionError(result.error)
+        setPendingTaskId(null)
+        return
+      }
+
+      router.refresh()
+    })
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -99,12 +122,12 @@ export default function StaffClient({
             </div>
           </section>
 
-          {loadError && (
+          {(loadError || taskActionError) && (
             <p
               role="alert"
               className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
             >
-              {loadError}
+              {loadError ?? taskActionError}
             </p>
           )}
 
@@ -128,32 +151,44 @@ export default function StaffClient({
                     <EmptyState message="No open care tasks found right now." />
                   ) : (
                     <div className="mt-6 space-y-4">
-                      {openTasks.slice(0, 8).map((task) => (
-                        <article
-                          key={task.id}
-                          className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
-                                <StatusPill tone="emerald">{formatTaskStatus(task.status)}</StatusPill>
-                              </div>
-                              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                {task.description || 'No additional task details saved.'}
-                              </p>
-                            </div>
+                      {openTasks.slice(0, 8).map((task) => {
+                        const isPending = isTaskActionPending && pendingTaskId === task.id
 
-                            <div className="flex shrink-0 flex-wrap gap-2 text-xs text-muted-foreground">
-                              <MetaChip>
-                                Resident: {getResidentLabel(task.residentId, residentNamesById)}
-                              </MetaChip>
-                              <MetaChip>Priority: {capitalize(task.priority)}</MetaChip>
-                              <MetaChip>Due: {formatOptionalDate(task.dueAt)}</MetaChip>
+                        return (
+                          <article
+                            key={task.id}
+                            className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
+                          >
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
+                                  <StatusPill tone="emerald">{formatTaskStatus(task.status)}</StatusPill>
+                                </div>
+                                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                  {task.description || 'No additional task details saved.'}
+                                </p>
+                              </div>
+
+                              <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <MetaChip>
+                                  Resident: {getResidentLabel(task.residentId, residentNamesById)}
+                                </MetaChip>
+                                <MetaChip>Priority: {capitalize(task.priority)}</MetaChip>
+                                <MetaChip>Due: {formatOptionalDate(task.dueAt)}</MetaChip>
+                                <button
+                                  type="button"
+                                  disabled={isTaskActionPending}
+                                  onClick={() => handleMarkTaskComplete(task.id)}
+                                  className="inline-flex items-center justify-center rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isPending ? 'Completing...' : 'Mark complete'}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        </article>
-                      ))}
+                          </article>
+                        )
+                      })}
                     </div>
                   )}
                 </section>

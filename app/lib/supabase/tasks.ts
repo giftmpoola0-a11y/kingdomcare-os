@@ -159,6 +159,28 @@ export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
 
 export async function completeTask(taskId: string): Promise<TaskRecord> {
   const { supabase, careHomeId } = await getTaskContext('status')
+  const normalizedTaskId = taskId.trim()
+
+  if (!normalizedTaskId) {
+    throw new Error('Task id is required.')
+  }
+
+  const existingTask = await getTaskRowById(supabase, careHomeId, normalizedTaskId)
+
+  if (!existingTask) {
+    throw new Error('Task not found.')
+  }
+
+  const normalizedStatus = normalizeTaskStatus(existingTask.status)
+
+  if (normalizedStatus === 'completed') {
+    throw new Error('Task is already completed.')
+  }
+
+  if (normalizedStatus === 'archived' || existingTask.deleted_at) {
+    throw new Error('Task is no longer available.')
+  }
+
   const { data, error } = await supabase
     .from('tasks')
     .update({
@@ -166,7 +188,7 @@ export async function completeTask(taskId: string): Promise<TaskRecord> {
       completed_at: new Date().toISOString(),
     })
     .eq('care_home_id', careHomeId)
-    .eq('id', taskId)
+    .eq('id', normalizedTaskId)
     .is('deleted_at', null)
     .select('*')
     .maybeSingle()
