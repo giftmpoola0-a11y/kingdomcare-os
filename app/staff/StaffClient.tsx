@@ -100,6 +100,15 @@ export default function StaffClient({
               </div>
 
               <div className="flex flex-wrap gap-3">
+                {(role === 'admin' || role === 'nurse') && (
+                  <Link
+                    href="/tasks/new"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                  >
+                    <ClipboardList className="size-4" />
+                    Create task
+                  </Link>
+                )}
                 {role === 'caregiver' && (
                   <Link
                     href="/shifts/new"

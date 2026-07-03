@@ -33,6 +33,7 @@ export async function createTaskAction(input: {
       residentId: input.residentId ?? null,
     })
     revalidatePath('/tasks')
+    revalidatePath('/staff')
     return { success: true }
   } catch (error) {
     return {

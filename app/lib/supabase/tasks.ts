@@ -99,11 +99,27 @@ export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
 }
 
 export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
-  const { supabase, careHomeId, userId } = await getTaskContext('write')
+  const { supabase, careHomeId, userId } = await getTaskContext('create')
+  const title = input.title.trim()
+
+  if (!title) {
+    throw new Error('Task title is required.')
+  }
+
+  const residentId = normalizeOptionalText(input.residentId)
+
+  if (residentId) {
+    const resident = await getResidentRowById(supabase, careHomeId, residentId)
+
+    if (!resident) {
+      throw new Error('Resident selection is invalid.')
+    }
+  }
+
   const payload: TaskInsert = {
     care_home_id: careHomeId,
-    resident_id: normalizeOptionalText(input.residentId),
-    title: input.title.trim(),
+    resident_id: residentId,
+    title,
     description: serializeTaskDescription(input.category, input.description),
     status: 'open',
     priority: normalizeTaskPriority(input.priority),
@@ -290,10 +306,14 @@ export function mapTaskRowToRecord(row: TaskRow): TaskRecord {
   }
 }
 
-async function getTaskContext(requiredAccess: 'read' | 'write' | 'manage' | 'status') {
+async function getTaskContext(requiredAccess: 'read' | 'create' | 'manage' | 'status') {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
   const access = await getCurrentUserAccess(supabase)
   const context = getTaskAccessContext(access)
+
+  if (requiredAccess === 'create' && access.role !== 'admin' && access.role !== 'nurse') {
+    throw new Error('Only care home admins and nurses can create tasks.')
+  }
 
   if (requiredAccess === 'manage' && access.role !== 'admin' && access.role !== 'nurse') {
     throw new Error('Only care home admins and nurses can manage tasks.')
@@ -335,6 +355,26 @@ async function getTaskRowById(
     .select('*')
     .eq('care_home_id', careHomeId)
     .eq('id', taskId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
+async function getResidentRowById(
+  supabase: TypedSupabaseClient,
+  careHomeId: string,
+  residentId: string
+) {
+  const { data, error } = await supabase
+    .from('residents')
+    .select('id')
+    .eq('care_home_id', careHomeId)
+    .eq('id', residentId)
     .is('deleted_at', null)
     .maybeSingle()
 

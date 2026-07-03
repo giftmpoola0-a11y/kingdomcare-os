@@ -57,11 +57,12 @@ export const config = {
     '/reports',
     '/incidents/:path*',
     '/medications',
-    '/tasks',
+    '/tasks/:path*',
     '/staff/:path*',
     '/account',
     '/onboarding',
     '/auth/:path*',
   ],
 }
+
 
