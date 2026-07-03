@@ -25,6 +25,10 @@ export default async function StaffManagementPage() {
     redirect('/onboarding')
   }
 
+  if (access.role !== 'admin') {
+    redirect('/staff')
+  }
+
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
