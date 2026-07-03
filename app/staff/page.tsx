@@ -99,9 +99,10 @@ export default async function StaffPage() {
           recentShiftReports={recentShiftReports}
           sidebarBadgeCounts={sidebarBadgeCounts}
           loadError={loadError}
-          incidentCreateHref={null}
+          incidentCreateHref="/incidents/new"
         />
       </div>
     </div>
   )
 }
+

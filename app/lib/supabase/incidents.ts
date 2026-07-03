@@ -131,15 +131,35 @@ export async function getRecentCurrentCareHomeIncidents(limit = 10): Promise<Inc
 
 export async function createIncident(input: CreateIncidentInput): Promise<IncidentRecord> {
   const { supabase, careHomeId, userId } = await getIncidentContext('write')
+  const residentId = normalizeOptionalText(input.residentId)
+  const incidentType = input.incidentType.trim()
+  const description = input.description.trim()
+
+  if (!incidentType) {
+    throw new Error('Incident type is required.')
+  }
+
+  if (!description) {
+    throw new Error('Description is required.')
+  }
+
+  if (residentId) {
+    const resident = await getResidentRowById(supabase, careHomeId, residentId)
+
+    if (!resident) {
+      throw new Error('Resident selection is invalid.')
+    }
+  }
+
   const payload: IncidentInsert = {
     care_home_id: careHomeId,
-    resident_id: normalizeOptionalText(input.residentId),
-    incident_type: input.incidentType.trim(),
+    resident_id: residentId,
+    incident_type: incidentType,
     severity: normalizeIncidentSeverity(input.severity),
     status: normalizeIncidentStatus(input.status),
     occurred_at: normalizeTimestamp(input.occurredAt) ?? new Date().toISOString(),
     location: normalizeOptionalText(input.location),
-    description: input.description.trim(),
+    description,
     immediate_action: normalizeOptionalText(input.immediateAction),
     follow_up_required: normalizeFollowUpRequired(input.followUpRequired, input.followUpNotes),
     follow_up_notes: serializeIncidentMeta(input.whoNotified, input.followUpNotes),
@@ -357,6 +377,26 @@ async function getIncidentRowById(
   return data
 }
 
+async function getResidentRowById(
+  supabase: TypedSupabaseClient,
+  careHomeId: string,
+  residentId: string
+) {
+  const { data, error } = await supabase
+    .from('residents')
+    .select('id')
+    .eq('care_home_id', careHomeId)
+    .eq('id', residentId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
 function buildIncidentUpdatePayload(input: UpdateIncidentInput): IncidentUpdate {
   const payload: IncidentUpdate = {}
 
@@ -501,4 +541,3 @@ function normalizeIncidentSeverity(value: string | null | undefined): IncidentSe
 function normalizeIncidentStatus(value: string | null | undefined): IncidentStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
-

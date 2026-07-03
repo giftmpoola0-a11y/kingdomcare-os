@@ -27,14 +27,22 @@ test('caregiver can access staff workspace but not staff management', async ({ p
 
   const createShiftReportLink = page.getByRole('link', { name: /create shift report/i }).first()
   const viewShiftReportsLink = page.getByRole('link', { name: /view shift reports/i }).first()
+  const reportIncidentLink = page.getByRole('link', { name: /report incident/i }).first()
   await expect(createShiftReportLink).toBeVisible()
   await expect(viewShiftReportsLink).toBeVisible()
+  await expect(reportIncidentLink).toBeVisible()
   await expect(createShiftReportLink).toHaveAttribute('href', '/shifts/new')
   await expect(viewShiftReportsLink).toHaveAttribute('href', '/shifts')
+  await expect(reportIncidentLink).toHaveAttribute('href', '/incidents/new')
+
+  await reportIncidentLink.click()
+  await page.waitForURL(/\/incidents\/new$/, { timeout: 20000 })
+  await expect(page.getByRole('heading', { name: /new incident/i })).toBeVisible()
+  await expect(page.getByLabel(/incident type/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /save incident/i })).toBeVisible()
 
   await page.goto(`${BASE}/staff/manage`, { waitUntil: 'load' })
   await page.waitForURL(/\/staff$/, { timeout: 20000 })
   await expect(page.getByRole('heading', { name: /caregiver workspace/i })).toBeVisible()
   await expect(page.locator('body')).not.toContainText(/staff management/i)
 })
-

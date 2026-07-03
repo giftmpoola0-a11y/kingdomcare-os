@@ -55,7 +55,7 @@ export const config = {
     '/residents/:path*',
     '/shifts/:path*',
     '/reports',
-    '/incidents',
+    '/incidents/:path*',
     '/medications',
     '/tasks',
     '/staff/:path*',
@@ -64,3 +64,4 @@ export const config = {
     '/auth/:path*',
   ],
 }
+
