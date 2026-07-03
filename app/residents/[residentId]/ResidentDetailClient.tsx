@@ -45,25 +45,40 @@ export default function ResidentDetailClient({
           {resident ? (
             <>
               <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-                <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                <div className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Link
+                      href="/residents"
+                      className="inline-flex items-center gap-2 self-start rounded-xl border border-border bg-background/60 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+                    >
+                      <ArrowLeft className="size-4" />
+                      Back to Residents
+                    </Link>
+
+                    {resident.status !== 'archived' ? (
+                      <Link
+                        href={`/shifts/new?residentId=${resident.id}`}
+                        className="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                      >
+                        <Workflow className="size-4" />
+                        Start Shift
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
                     <ResidentPhotoUploader
                       residentId={resident.id}
                       photoUrl={resident.photoUrl}
                       initials={getInitials(resident.name)}
                       canManage={canManage}
+                      containerClassName="flex flex-col items-center gap-3 sm:items-start"
+                      avatarClassName="h-36 w-36 rounded-[28px] text-3xl shadow-[0_20px_45px_rgba(0,0,0,0.22)]"
+                      actionsClassName="flex w-full flex-col gap-2 sm:items-start"
                     />
 
-                    <div className="max-w-3xl">
-                      <Link
-                        href="/residents"
-                        className="inline-flex items-center gap-2 rounded-xl border border-border bg-background/60 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-                      >
-                        <ArrowLeft className="size-4" />
-                        Back to Residents
-                      </Link>
-
-                      <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200 ring-1 ring-emerald-400/20">
+                    <div className="min-w-0 max-w-3xl">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200 ring-1 ring-emerald-400/20">
                         <span className="inline-flex size-2 rounded-full bg-emerald-400" aria-hidden="true" />
                         Resident Profile
                       </div>
@@ -74,18 +89,28 @@ export default function ResidentDetailClient({
                       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                         Age {resident.age} - {resident.careLevel}
                       </p>
+
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <span className="rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border/80">
+                          {SEX_LABELS[resident.sex]}
+                        </span>
+                        <StatusBadge
+                          label={resident.status === 'archived' ? 'Archived' : 'Active'}
+                          colorClass={
+                            resident.status === 'archived'
+                              ? 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35'
+                              : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/35'
+                          }
+                        />
+                      </div>
+
+                      <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                        {resident.photoUrl
+                          ? 'Resident photo is displayed from a signed Supabase URL for this session only.'
+                          : 'No resident photo uploaded yet. Initials are shown until a photo is added.'}
+                      </p>
                     </div>
                   </div>
-
-                  {resident.status !== 'archived' ? (
-                    <Link
-                      href={`/shifts/new?residentId=${resident.id}`}
-                      className="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                    >
-                      <Workflow className="size-4" />
-                      Start Shift
-                    </Link>
-                  ) : null}
                 </div>
               </section>
 

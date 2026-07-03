@@ -16,9 +16,20 @@ export interface ResidentPhotoUploaderProps {
   photoUrl: string | null
   initials: string
   canManage: boolean
+  avatarClassName?: string
+  containerClassName?: string
+  actionsClassName?: string
 }
 
-export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManage }: ResidentPhotoUploaderProps) {
+export function ResidentPhotoUploader({
+  residentId,
+  photoUrl,
+  initials,
+  canManage,
+  avatarClassName,
+  containerClassName,
+  actionsClassName,
+}: ResidentPhotoUploaderProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isPending, startTransition] = useTransition()
@@ -66,18 +77,27 @@ export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManag
     })
   }
 
+  const wrapperClassName = containerClassName ?? 'flex flex-col items-center gap-3 sm:items-start'
+  const photoClassName = [
+    'relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border bg-background/60 text-2xl font-semibold text-muted-foreground ring-1 ring-border/80',
+    avatarClassName,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const actionGroupClassName = actionsClassName ?? 'flex flex-col items-center gap-2 sm:items-start'
+
   return (
-    <div className="flex flex-col items-center gap-3 sm:items-start">
-      <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border bg-background/60 text-2xl font-semibold text-muted-foreground ring-1 ring-border/80">
+    <div className={wrapperClassName}>
+      <div className={photoClassName}>
         {photoUrl ? (
-          <Image src={photoUrl} alt="" fill sizes="112px" className="object-cover" />
+          <Image src={photoUrl} alt="" fill sizes="144px" className="object-cover" />
         ) : (
           initials
         )}
       </div>
 
       {canManage && (
-        <div className="flex flex-col items-center gap-2 sm:items-start">
+        <div className={actionGroupClassName}>
           <input
             ref={fileInputRef}
             type="file"
