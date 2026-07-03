@@ -68,7 +68,7 @@ export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManag
 
   return (
     <div className="flex flex-col items-center gap-3 sm:items-start">
-      <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-background/60 text-2xl font-semibold text-muted-foreground">
+      <div className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border bg-background/60 text-2xl font-semibold text-muted-foreground ring-1 ring-border/80">
         {photoUrl ? (
           <Image src={photoUrl} alt="" fill sizes="112px" className="object-cover" />
         ) : (
@@ -100,7 +100,7 @@ export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManag
                 type="button"
                 disabled={isPending}
                 onClick={handleRemove}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
               >
                 <Trash2 className="size-3.5" />
                 Remove
@@ -108,7 +108,7 @@ export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManag
             )}
           </div>
           {error && (
-            <p role="alert" className="text-xs font-medium text-red-600">
+            <p role="alert" className="text-xs font-medium text-rose-300">
               {error}
             </p>
           )}
