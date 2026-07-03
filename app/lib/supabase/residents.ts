@@ -11,8 +11,11 @@ type ResidentInsert = TablesInsert<'residents'>
 type ResidentUpdate = TablesUpdate<'residents'>
 type TypedSupabaseClient = SupabaseClient<Database>
 
+export type ResidentSex = 'male' | 'female' | 'other' | 'unknown'
+
 export interface ResidentRecord extends DemoResident {
   status: ResidentStatus
+  sex: ResidentSex
 }
 
 export interface ResidentActivityRecord {
@@ -113,6 +116,7 @@ export async function createResident(input: CreateResidentInput): Promise<Reside
     care_level: input.careLevel.trim(),
     primary_support_needs: serializePrimarySupportNeeds(input.primarySupportNeeds),
     notes: normalizeOptionalText(input.notes),
+    sex: normalizeResidentSex(input.sex),
     status: 'active',
     legacy_local_id: normalizeOptionalText(input.legacyLocalId),
     deleted_at: null,
@@ -231,6 +235,7 @@ export function mapResidentRowToRecord(row: ResidentRow): ResidentRecord {
     careLevel: row.care_level,
     primarySupportNeeds: parsePrimarySupportNeeds(row.primary_support_needs),
     notes: row.notes ?? '',
+    sex: normalizeResidentSex(row.sex),
     status: normalizeResidentStatus(row.status),
   }
 }
@@ -309,6 +314,10 @@ function buildResidentUpdatePayload(input: UpdateResidentInput): ResidentUpdate 
     payload.notes = normalizeOptionalText(input.notes)
   }
 
+  if ('sex' in input && input.sex) {
+    payload.sex = normalizeResidentSex(input.sex)
+  }
+
   if ('status' in input && input.status) {
     payload.status = normalizeResidentStatus(input.status)
   }
@@ -373,6 +382,10 @@ function serializePrimarySupportNeeds(value: string[]): string | null {
 
 function normalizeResidentStatus(status: string): ResidentStatus {
   return status === 'archived' ? 'archived' : 'active'
+}
+
+function normalizeResidentSex(value: string | null | undefined): ResidentSex {
+  return value === 'male' || value === 'female' || value === 'other' ? value : 'unknown'
 }
 
 

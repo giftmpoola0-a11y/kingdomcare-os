@@ -3,8 +3,19 @@ import { redirect } from 'next/navigation'
 import PageShell from '@/app/components/ui/PageShell'
 import StatusBadge from '@/app/components/ui/StatusBadge'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
-import { getResidentById } from '@/app/lib/supabase/residents'
+import { getResidentById, type ResidentSex } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+
+const SEX_LABELS: Record<ResidentSex, string> = {
+  unknown: 'Unknown',
+  male: 'Male',
+  female: 'Female',
+  other: 'Other',
+}
+
+function formatResidentSex(sex: ResidentSex): string {
+  return SEX_LABELS[sex]
+}
 
 function DetailEmptyState({
   message,
@@ -154,9 +165,10 @@ export default async function ResidentDetailPage({
               )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <DetailField label="Resident Name" value={resident.name} />
               <DetailField label="Age" value={String(resident.age)} />
+              <DetailField label="Sex" value={formatResidentSex(resident.sex)} />
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">

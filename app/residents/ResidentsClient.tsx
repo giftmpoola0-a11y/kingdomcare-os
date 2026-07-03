@@ -8,7 +8,7 @@ import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
-import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { ResidentRecord, ResidentSex } from '@/app/lib/supabase/residents'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import {
   archiveResidentAction,
@@ -29,6 +29,13 @@ const CARE_LEVEL_SUGGESTIONS = [
   'Behavioral support',
   'Medical monitoring',
   'Mobility assistance',
+]
+
+const SEX_OPTIONS: { value: ResidentSex; label: string }[] = [
+  { value: 'unknown', label: 'Unknown' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
 ]
 
 const SUPPORT_NEED_SUGGESTIONS = [
@@ -80,6 +87,10 @@ function avatarColor(id: string) {
   return AVATAR_COLORS[sum % AVATAR_COLORS.length]
 }
 
+function formatResidentSex(sex: ResidentSex): string {
+  return SEX_OPTIONS.find((option) => option.value === sex)?.label ?? 'Unknown'
+}
+
 export interface ResidentsClientProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
@@ -108,6 +119,7 @@ export default function ResidentsClient({
     careLevel: '',
     primarySupportNeeds: '',
     notes: '',
+    sex: 'unknown' as ResidentSex,
   })
 
   const visibleResidents = initialResidents.filter(
@@ -116,8 +128,13 @@ export default function ResidentsClient({
   const activeResidentsCount = initialResidents.filter((resident) => resident.status !== 'archived').length
   const archivedResidentsCount = initialResidents.length - activeResidentsCount
 
-  function handleChange(field: keyof typeof form, value: string) {
+  function handleChange(field: Exclude<keyof typeof form, 'sex'>, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
+    if (formError) setFormError('')
+  }
+
+  function handleSexChange(value: ResidentSex) {
+    setForm((prev) => ({ ...prev, sex: value }))
     if (formError) setFormError('')
   }
 
@@ -133,7 +150,7 @@ export default function ResidentsClient({
   }
 
   function resetForm() {
-    setForm({ name: '', age: '', careLevel: '', primarySupportNeeds: '', notes: '' })
+    setForm({ name: '', age: '', careLevel: '', primarySupportNeeds: '', notes: '', sex: 'unknown' })
     setEditingResidentId(null)
     setShowForm(false)
     setFormError('')
@@ -147,6 +164,7 @@ export default function ResidentsClient({
       careLevel: resident.careLevel,
       primarySupportNeeds: resident.primarySupportNeeds.join('\n'),
       notes: resident.notes,
+      sex: resident.sex,
     })
     setEditingResidentId(resident.id)
     setShowForm(true)
@@ -197,8 +215,9 @@ export default function ResidentsClient({
             careLevel,
             primarySupportNeeds,
             notes,
+            sex: form.sex,
           })
-        : await createResidentAction({ name, age, careLevel, primarySupportNeeds, notes })
+        : await createResidentAction({ name, age, careLevel, primarySupportNeeds, notes, sex: form.sex })
 
       if (!result.success) {
         setActionError(result.error)
@@ -370,7 +389,7 @@ export default function ResidentsClient({
                   />
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <label htmlFor="residentAge" className="block text-sm font-semibold text-foreground">
                       Age
@@ -383,6 +402,24 @@ export default function ResidentsClient({
                       onChange={(e) => handleChange('age', e.target.value)}
                       className={INPUT_CLASS}
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="residentSex" className="block text-sm font-semibold text-foreground">
+                      Sex
+                    </label>
+                    <select
+                      id="residentSex"
+                      value={form.sex}
+                      onChange={(e) => handleSexChange(e.target.value as ResidentSex)}
+                      className={INPUT_CLASS}
+                    >
+                      {SEX_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-1.5">
@@ -542,7 +579,9 @@ export default function ResidentsClient({
                             {isArchived ? 'Archived' : 'Active'}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">Age {resident.age}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Age {resident.age} &middot; {formatResidentSex(resident.sex)}
+                        </p>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground ring-1 ring-border/80">

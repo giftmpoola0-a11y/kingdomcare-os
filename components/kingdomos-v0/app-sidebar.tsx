@@ -36,6 +36,10 @@ function resolveItemBadge(
   defaultBadge: string | number | undefined,
   badgeCounts?: SidebarBadgeCounts,
 ) {
+  if (label === 'Residents' && typeof badgeCounts?.activeResidentsCount === 'number') {
+    return badgeCounts.activeResidentsCount
+  }
+
   if (label === 'Tasks' && typeof badgeCounts?.openTasksCount === 'number') {
     return badgeCounts.openTasksCount
   }
