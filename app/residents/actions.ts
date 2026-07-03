@@ -6,6 +6,8 @@ import {
   updateResident,
   archiveResident,
   softDeleteResident,
+  uploadResidentPhoto,
+  removeResidentPhoto,
   type CreateResidentInput,
   type UpdateResidentInput,
 } from '@/app/lib/supabase/residents'
@@ -80,6 +82,37 @@ export async function restoreResidentAction(id: string): Promise<ResidentActionR
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to restore resident. Please try again.',
+    }
+  }
+}
+
+export async function uploadResidentPhotoAction(
+  residentId: string,
+  formData: FormData
+): Promise<ResidentActionResult> {
+  try {
+    await uploadResidentPhoto(residentId, formData)
+    revalidatePath('/residents')
+    revalidatePath(`/residents/${residentId}`)
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to upload photo. Please try again.',
+    }
+  }
+}
+
+export async function removeResidentPhotoAction(residentId: string): Promise<ResidentActionResult> {
+  try {
+    await removeResidentPhoto(residentId)
+    revalidatePath('/residents')
+    revalidatePath(`/residents/${residentId}`)
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to remove photo. Please try again.',
     }
   }
 }

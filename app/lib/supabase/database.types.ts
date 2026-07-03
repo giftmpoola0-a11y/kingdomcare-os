@@ -360,6 +360,7 @@ export type Database = {
           id: string
           legacy_local_id: string | null
           notes: string | null
+          photo_path: string | null
           primary_support_needs: string | null
           sex: string
           status: string
@@ -376,6 +377,7 @@ export type Database = {
           id?: string
           legacy_local_id?: string | null
           notes?: string | null
+          photo_path?: string | null
           primary_support_needs?: string | null
           sex?: string
           status?: string
@@ -392,6 +394,7 @@ export type Database = {
           id?: string
           legacy_local_id?: string | null
           notes?: string | null
+          photo_path?: string | null
           primary_support_needs?: string | null
           sex?: string
           status?: string

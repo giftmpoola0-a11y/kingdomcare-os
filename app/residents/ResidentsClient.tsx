@@ -1,9 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
-import { Building2, Eye, Pencil, RotateCcw, Trash2, Users, UserPlus } from 'lucide-react'
+import { useRef, useState, useTransition } from 'react'
+import { Building2, Eye, ImagePlus, Pencil, RotateCcw, Trash2, Users, UserPlus } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
@@ -14,9 +15,14 @@ import {
   archiveResidentAction,
   createResidentAction,
   deleteResidentAction,
+  removeResidentPhotoAction,
   restoreResidentAction,
   updateResidentAction,
+  uploadResidentPhotoAction,
 } from './actions'
+
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 const CARE_LEVEL_SUGGESTIONS = [
   'Independent with reminders',
@@ -91,6 +97,110 @@ function formatResidentSex(sex: ResidentSex): string {
   return SEX_OPTIONS.find((option) => option.value === sex)?.label ?? 'Unknown'
 }
 
+function ResidentPhotoField({ resident }: { resident: ResidentRecord }) {
+  const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState('')
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setError('Photo must be a JPG, PNG, or WebP image.')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setError('Photo must be smaller than 5MB.')
+      return
+    }
+
+    setError('')
+    const formData = new FormData()
+    formData.append('photo', file)
+
+    startTransition(async () => {
+      const result = await uploadResidentPhotoAction(resident.id, formData)
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  function handleRemove() {
+    if (!window.confirm("Remove this resident's photo?")) return
+
+    setError('')
+    startTransition(async () => {
+      const result = await removeResidentPhotoAction(resident.id)
+      if (!result.success) {
+        setError(result.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="block text-sm font-semibold text-foreground">Resident Photo</p>
+      <div className="flex items-center gap-4">
+        <div
+          className={cn(
+            'relative h-16 w-16 shrink-0 overflow-hidden rounded-xl',
+            !resident.photoUrl && `flex items-center justify-center text-sm font-semibold ${avatarColor(resident.id)}`,
+          )}
+        >
+          {resident.photoUrl ? (
+            <Image src={resident.photoUrl} alt="" fill sizes="64px" className="object-cover" />
+          ) : (
+            getInitials(resident.name)
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+          >
+            <ImagePlus className="size-3.5" />
+            {resident.photoUrl ? 'Replace Photo' : 'Upload Photo'}
+          </button>
+          {resident.photoUrl && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleRemove}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
+            >
+              <Trash2 className="size-3.5" />
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs font-medium text-rose-300">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export interface ResidentsClientProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
@@ -125,6 +235,9 @@ export default function ResidentsClient({
   const visibleResidents = initialResidents.filter(
     (resident) => showArchived || resident.status !== 'archived'
   )
+  const editingResident = editingResidentId
+    ? (initialResidents.find((resident) => resident.id === editingResidentId) ?? null)
+    : null
   const activeResidentsCount = initialResidents.filter((resident) => resident.status !== 'archived').length
   const archivedResidentsCount = initialResidents.length - activeResidentsCount
 
@@ -375,6 +488,8 @@ export default function ResidentsClient({
               </div>
 
               <div className="mt-6 space-y-5">
+                {editingResident && <ResidentPhotoField resident={editingResident} />}
+
                 <div className="space-y-1.5">
                   <label htmlFor="residentName" className="block text-sm font-semibold text-foreground">
                     Full Name
@@ -561,8 +676,17 @@ export default function ResidentsClient({
                     )}
                   >
                     <div className="flex gap-4 rounded-2xl border border-border bg-background/60 p-4 transition-colors hover:bg-accent/30">
-                      <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold', avatarClr)}>
-                        {getInitials(resident.name)}
+                      <div
+                        className={cn(
+                          'relative h-12 w-12 shrink-0 overflow-hidden rounded-xl',
+                          !resident.photoUrl && `flex items-center justify-center text-sm font-semibold ${avatarClr}`,
+                        )}
+                      >
+                        {resident.photoUrl ? (
+                          <Image src={resident.photoUrl} alt="" fill sizes="48px" className="object-cover" />
+                        ) : (
+                          getInitials(resident.name)
+                        )}
                       </div>
 
                       <div className="min-w-0 flex-1">

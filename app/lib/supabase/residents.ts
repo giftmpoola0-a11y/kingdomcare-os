@@ -1,4 +1,4 @@
-﻿import 'server-only'
+import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DemoResident, ResidentStatus } from '@/app/lib/reportTypes'
@@ -16,6 +16,16 @@ export type ResidentSex = 'male' | 'female' | 'other' | 'unknown'
 export interface ResidentRecord extends DemoResident {
   status: ResidentStatus
   sex: ResidentSex
+  photoUrl: string | null
+}
+
+const RESIDENT_PHOTOS_BUCKET = 'resident-photos'
+const RESIDENT_PHOTO_SIGNED_URL_TTL_SECONDS = 60 * 60
+const MAX_RESIDENT_PHOTO_BYTES = 5 * 1024 * 1024
+const RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
 }
 
 export interface ResidentActivityRecord {
@@ -26,11 +36,11 @@ export interface ResidentActivityRecord {
   updatedAt: string
 }
 
-export type CreateResidentInput = Omit<ResidentRecord, 'id' | 'status'> & {
+export type CreateResidentInput = Omit<ResidentRecord, 'id' | 'status' | 'photoUrl'> & {
   legacyLocalId?: string | null
 }
 
-export type UpdateResidentInput = Partial<Omit<ResidentRecord, 'id'>> & {
+export type UpdateResidentInput = Partial<Omit<ResidentRecord, 'id' | 'photoUrl'>> & {
   id: string
   legacyLocalId?: string | null
 }
@@ -55,7 +65,7 @@ export async function getCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapResidentRowToRecord)
+  return Promise.all((data ?? []).map((row) => mapResidentRowToRecord(supabase, row)))
 }
 
 export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
@@ -72,7 +82,7 @@ export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecor
     throw new Error(error.message)
   }
 
-  return (data ?? []).map(mapResidentRowToRecord)
+  return Promise.all((data ?? []).map((row) => mapResidentRowToRecord(supabase, row)))
 }
 
 export async function getRecentCurrentCareHomeResidents(limit = 10): Promise<ResidentActivityRecord[]> {
@@ -103,7 +113,7 @@ export async function getResidentById(residentId: string): Promise<ResidentRecor
   const { supabase, careHomeId } = await getResidentContext('read')
   const resident = await getResidentRowById(supabase, careHomeId, residentId)
 
-  return resident ? mapResidentRowToRecord(resident) : null
+  return resident ? mapResidentRowToRecord(supabase, resident) : null
 }
 
 export async function createResident(input: CreateResidentInput): Promise<ResidentRecord> {
@@ -128,7 +138,7 @@ export async function createResident(input: CreateResidentInput): Promise<Reside
     throw new Error(error.message)
   }
 
-  return mapResidentRowToRecord(data)
+  return mapResidentRowToRecord(supabase, data)
 }
 
 export async function updateResident(input: UpdateResidentInput): Promise<ResidentRecord> {
@@ -142,7 +152,7 @@ export async function updateResident(input: UpdateResidentInput): Promise<Reside
       throw new Error('Resident not found.')
     }
 
-    return mapResidentRowToRecord(existingResident)
+    return mapResidentRowToRecord(supabase, existingResident)
   }
 
   const { data, error } = await supabase
@@ -162,7 +172,7 @@ export async function updateResident(input: UpdateResidentInput): Promise<Reside
     throw new Error('Resident not found.')
   }
 
-  return mapResidentRowToRecord(data)
+  return mapResidentRowToRecord(supabase, data)
 }
 
 export async function archiveResident(residentId: string): Promise<ResidentRecord> {
@@ -184,7 +194,7 @@ export async function archiveResident(residentId: string): Promise<ResidentRecor
     throw new Error('Resident not found.')
   }
 
-  return mapResidentRowToRecord(data)
+  return mapResidentRowToRecord(supabase, data)
 }
 
 export async function softDeleteResident(residentId: string): Promise<void> {
@@ -226,7 +236,10 @@ export async function softDeleteResident(residentId: string): Promise<void> {
   }
 }
 
-export function mapResidentRowToRecord(row: ResidentRow): ResidentRecord {
+export async function mapResidentRowToRecord(
+  supabase: TypedSupabaseClient,
+  row: ResidentRow
+): Promise<ResidentRecord> {
   return {
     id: row.id,
     name: row.full_name,
@@ -237,7 +250,146 @@ export function mapResidentRowToRecord(row: ResidentRow): ResidentRecord {
     notes: row.notes ?? '',
     sex: normalizeResidentSex(row.sex),
     status: normalizeResidentStatus(row.status),
+    photoUrl: await getResidentPhotoSignedUrl(supabase, row.photo_path),
   }
+}
+
+async function getResidentPhotoSignedUrl(
+  supabase: TypedSupabaseClient,
+  photoPath: string | null
+): Promise<string | null> {
+  if (!photoPath) {
+    return null
+  }
+
+  const { data, error } = await supabase.storage
+    .from(RESIDENT_PHOTOS_BUCKET)
+    .createSignedUrl(photoPath, RESIDENT_PHOTO_SIGNED_URL_TTL_SECONDS)
+
+  if (error || !data?.signedUrl) {
+    console.error('Failed to create resident photo signed URL:', {
+      photoPath,
+      error: error?.message ?? 'Missing signed URL',
+    })
+    return null
+  }
+
+  return data.signedUrl
+}
+
+async function cleanupStaleResidentPhotoVariants(
+  supabase: TypedSupabaseClient,
+  stalePaths: string[],
+  residentId: string
+) {
+  const { error } = await supabase.storage.from(RESIDENT_PHOTOS_BUCKET).remove(stalePaths)
+
+  if (error) {
+    console.error('Failed to remove stale resident photo variants:', {
+      residentId,
+      stalePaths,
+      error: error.message,
+    })
+  }
+}
+
+export async function uploadResidentPhoto(residentId: string, formData: FormData): Promise<ResidentRecord> {
+  const { supabase, careHomeId } = await getResidentContext('admin')
+
+  const file = formData.get('photo')
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('No photo file was provided.')
+  }
+
+  const extension = RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE[file.type]
+  if (!extension) {
+    throw new Error('Photo must be a JPG, PNG, or WebP image.')
+  }
+
+  if (file.size > MAX_RESIDENT_PHOTO_BYTES) {
+    throw new Error('Photo must be smaller than 5MB.')
+  }
+
+  const existingResident = await getResidentRowById(supabase, careHomeId, residentId)
+
+  if (!existingResident) {
+    throw new Error('Resident not found.')
+  }
+
+  const photoPath = `${careHomeId}/${residentId}/profile.${extension}`
+
+  const { error: uploadError } = await supabase.storage
+    .from(RESIDENT_PHOTOS_BUCKET)
+    .upload(photoPath, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) {
+    throw new Error(uploadError.message)
+  }
+
+  const stalePaths = Object.values(RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE)
+    .map((candidateExtension) => `${careHomeId}/${residentId}/profile.${candidateExtension}`)
+    .filter((candidatePath) => candidatePath !== photoPath)
+
+  if (stalePaths.length > 0) {
+    await cleanupStaleResidentPhotoVariants(supabase, stalePaths, residentId)
+  }
+
+  const { data, error } = await supabase
+    .from('residents')
+    .update({ photo_path: photoPath })
+    .eq('care_home_id', careHomeId)
+    .eq('id', residentId)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Resident not found.')
+  }
+
+  return mapResidentRowToRecord(supabase, data)
+}
+
+export async function removeResidentPhoto(residentId: string): Promise<ResidentRecord> {
+  const { supabase, careHomeId } = await getResidentContext('admin')
+  const existingResident = await getResidentRowById(supabase, careHomeId, residentId)
+
+  if (!existingResident) {
+    throw new Error('Resident not found.')
+  }
+
+  if (existingResident.photo_path) {
+    const { error: removeError } = await supabase.storage
+      .from(RESIDENT_PHOTOS_BUCKET)
+      .remove([existingResident.photo_path])
+
+    if (removeError) {
+      throw new Error(removeError.message)
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('residents')
+    .update({ photo_path: null })
+    .eq('care_home_id', careHomeId)
+    .eq('id', residentId)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  if (!data) {
+    throw new Error('Resident not found.')
+  }
+
+  return mapResidentRowToRecord(supabase, data)
 }
 
 async function getResidentContext(requiredAccess: 'read' | 'admin') {
@@ -387,6 +539,3 @@ function normalizeResidentStatus(status: string): ResidentStatus {
 function normalizeResidentSex(value: string | null | undefined): ResidentSex {
   return value === 'male' || value === 'female' || value === 'other' ? value : 'unknown'
 }
-
-
-
