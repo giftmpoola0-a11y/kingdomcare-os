@@ -10,6 +10,7 @@ import {
   type MedicationAlertRecord,
 } from '@/app/lib/supabase/medications'
 import {
+  getActiveCurrentCareHomeResidents,
   getCurrentCareHomeResidents,
   type ResidentRecord,
 } from '@/app/lib/supabase/residents'
@@ -18,6 +19,10 @@ import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   getCurrentCareHomeSidebarBadgeCounts,
 } from '@/app/lib/supabase/sidebar-badge-counts'
+import {
+  getCurrentCareHomeShiftReports,
+  type ShiftReportRecord,
+} from '@/app/lib/supabase/shiftReports'
 import { getOpenCurrentCareHomeTasks, type TaskRecord } from '@/app/lib/supabase/tasks'
 import StaffClient from './StaffClient'
 
@@ -42,14 +47,18 @@ export default async function StaffPage() {
   let recentIncidents: IncidentRecord[] = []
   let medicationAlerts: MedicationAlertRecord[] = []
   let residents: ResidentRecord[] = []
+  let activeResidents: ResidentRecord[] = []
+  let recentShiftReports: ShiftReportRecord[] = []
   let loadError: string | null = null
 
   try {
     if (access.role === 'caregiver') {
-      ;[openTasks, residents] = await Promise.all([
+      ;[openTasks, activeResidents, recentShiftReports] = await Promise.all([
         getOpenCurrentCareHomeTasks(),
-        getCurrentCareHomeResidents(),
+        getActiveCurrentCareHomeResidents(),
+        getCurrentCareHomeShiftReports(6),
       ])
+      residents = activeResidents
     }
 
     if (access.role === 'nurse') {
@@ -86,6 +95,8 @@ export default async function StaffPage() {
           recentIncidents={recentIncidents}
           medicationAlerts={medicationAlerts}
           residentNamesById={residentNamesById}
+          activeResidents={activeResidents}
+          recentShiftReports={recentShiftReports}
           sidebarBadgeCounts={sidebarBadgeCounts}
           loadError={loadError}
           incidentCreateHref={null}

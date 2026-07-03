@@ -12,6 +12,7 @@ import {
   Stethoscope,
   TriangleAlert,
   UserRound,
+  Users,
 } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
@@ -19,6 +20,8 @@ import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { MembershipRole } from '@/app/lib/supabase/access'
 import type { IncidentRecord } from '@/app/lib/supabase/incidents'
 import type { MedicationAlertRecord } from '@/app/lib/supabase/medications'
+import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
 
 interface StaffClientProps {
@@ -28,6 +31,8 @@ interface StaffClientProps {
   recentIncidents: IncidentRecord[]
   medicationAlerts: MedicationAlertRecord[]
   residentNamesById: Record<string, string>
+  activeResidents: ResidentRecord[]
+  recentShiftReports: ShiftReportRecord[]
   sidebarBadgeCounts: SidebarBadgeCounts
   loadError: string | null
   incidentCreateHref: string | null
@@ -40,6 +45,8 @@ export default function StaffClient({
   recentIncidents,
   medicationAlerts,
   residentNamesById,
+  activeResidents,
+  recentShiftReports,
   sidebarBadgeCounts,
   loadError,
   incidentCreateHref,
@@ -102,91 +109,190 @@ export default function StaffClient({
           )}
 
           {role === 'caregiver' && (
-            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-              <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25">
-                    <ClipboardList className="size-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-foreground">Open care tasks</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {openTasks.length} task{openTasks.length === 1 ? '' : 's'} need attention.
-                    </p>
+            <>
+              <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/25">
+                      <ClipboardList className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Open care tasks</h2>
+                      <p className="text-sm text-muted-foreground">
+                        {openTasks.length} task{openTasks.length === 1 ? '' : 's'} need attention.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {openTasks.length === 0 ? (
-                  <EmptyState message="No open care tasks found right now." />
-                ) : (
-                  <div className="mt-6 space-y-4">
-                    {openTasks.slice(0, 8).map((task) => (
-                      <article
-                        key={task.id}
-                        className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
-                              <StatusPill tone="emerald">{formatTaskStatus(task.status)}</StatusPill>
+                  {openTasks.length === 0 ? (
+                    <EmptyState message="No open care tasks found right now." />
+                  ) : (
+                    <div className="mt-6 space-y-4">
+                      {openTasks.slice(0, 8).map((task) => (
+                        <article
+                          key={task.id}
+                          className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
+                                <StatusPill tone="emerald">{formatTaskStatus(task.status)}</StatusPill>
+                              </div>
+                              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                {task.description || 'No additional task details saved.'}
+                              </p>
                             </div>
-                            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                              {task.description || 'No additional task details saved.'}
-                            </p>
+
+                            <div className="flex shrink-0 flex-wrap gap-2 text-xs text-muted-foreground">
+                              <MetaChip>
+                                Resident: {getResidentLabel(task.residentId, residentNamesById)}
+                              </MetaChip>
+                              <MetaChip>Priority: {capitalize(task.priority)}</MetaChip>
+                              <MetaChip>Due: {formatOptionalDate(task.dueAt)}</MetaChip>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/25">
+                      <Users className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Active residents</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Quick access to current resident profiles.
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeResidents.length === 0 ? (
+                    <EmptyState message="No active residents found right now." />
+                  ) : (
+                    <div className="mt-6 space-y-4">
+                      {activeResidents.slice(0, 8).map((resident) => (
+                        <Link
+                          key={resident.id}
+                          href={`/residents/${resident.id}`}
+                          className="block rounded-2xl border border-border bg-background/60 p-4 transition-colors hover:bg-background/80 sm:p-5"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold text-foreground">{resident.name}</h3>
+                                <StatusPill tone="emerald">{resident.status === 'archived' ? 'Archived' : 'Active'}</StatusPill>
+                              </div>
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                {formatResidentSex(resident.sex)} - {resident.careLevel}
+                              </p>
+                            </div>
+                            <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
                           </div>
 
-                          <div className="flex shrink-0 flex-wrap gap-2 text-xs text-muted-foreground">
-                            <MetaChip>
-                              Resident: {getResidentLabel(task.residentId, residentNamesById)}
-                            </MetaChip>
-                            <MetaChip>Priority: {capitalize(task.priority)}</MetaChip>
-                            <MetaChip>Due: {formatOptionalDate(task.dueAt)}</MetaChip>
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+                          {resident.primarySupportNeeds.length > 0 ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {resident.primarySupportNeeds.slice(0, 3).map((need) => (
+                                <MetaChip key={need}>{need}</MetaChip>
+                              ))}
+                              {resident.primarySupportNeeds.length > 3 ? (
+                                <MetaChip>+{resident.primarySupportNeeds.length - 3} more</MetaChip>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
 
-              <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/25">
-                    <UserRound className="size-5" />
-                  </span>
-                  <div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-foreground">Quick actions</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Move directly into the current staff workflows.
-                    </p>
+              <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-400/25">
+                      <NotebookPen className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Shift reports</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Capture handover notes or review recent reports from live care-home data.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-6 space-y-3">
-                  <ActionLink
-                    href="/shifts/new"
-                    icon={<NotebookPen className="size-4" />}
-                    title="Create shift report"
-                    description="Capture handover notes and care observations for this shift."
-                  />
-                  <ActionLink
-                    href="/tasks"
-                    icon={<ClipboardList className="size-4" />}
-                    title="View all tasks"
-                    description="Open the full care-task queue for your care home."
-                  />
-                  {incidentCreateHref ? (
+                  <div className="mt-6 space-y-3">
                     <ActionLink
-                      href={incidentCreateHref}
-                      icon={<TriangleAlert className="size-4" />}
-                      title="Report incident"
-                      description="Log a new incident report for follow-up."
+                      href="/shifts/new"
+                      icon={<NotebookPen className="size-4" />}
+                      title="Create shift report"
+                      description="Document care observations and a handover summary for this shift."
                     />
-                  ) : null}
-                </div>
-              </section>
-            </div>
+                    <ActionLink
+                      href="/shifts"
+                      icon={<ClipboardList className="size-4" />}
+                      title="View shift reports"
+                      description="Open the saved shift report list for this care home."
+                    />
+                    <ActionLink
+                      href="/tasks"
+                      icon={<ClipboardList className="size-4" />}
+                      title="View all tasks"
+                      description="Open the full task workspace for your current care home."
+                    />
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/25">
+                      <NotebookPen className="size-5" />
+                    </span>
+                    <div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Recent shift reports</h2>
+                      <p className="text-sm text-muted-foreground">
+                        The latest saved handover and care notes.
+                      </p>
+                    </div>
+                  </div>
+
+                  {recentShiftReports.length === 0 ? (
+                    <EmptyState message="No shift reports found yet." />
+                  ) : (
+                    <div className="mt-6 space-y-4">
+                      {recentShiftReports.map((report) => (
+                        <Link
+                          key={report.id}
+                          href={`/shifts/${report.id}`}
+                          className="block rounded-2xl border border-border bg-background/60 p-4 transition-colors hover:bg-background/80 sm:p-5"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-lg font-semibold text-foreground">{report.residentName}</h3>
+                                <StatusPill tone="amber">{report.shiftType}</StatusPill>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                                {report.summary}
+                              </p>
+                            </div>
+
+                            <div className="flex shrink-0 flex-wrap gap-2 text-xs text-muted-foreground">
+                              <MetaChip>Date: {formatShiftDate(report.shiftDate)}</MetaChip>
+                              <MetaChip>Saved: {formatDateTime(report.createdAt)}</MetaChip>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            </>
           )}
 
           {role === 'nurse' && (
@@ -410,7 +516,7 @@ function getWorkspaceHeading(role: MembershipRole) {
 
 function getWorkspaceIntro(role: MembershipRole) {
   if (role === 'caregiver') {
-    return 'Focus on open care tasks and shift reporting using the same live care-home data as the admin portal.'
+    return 'See today\'s open care tasks, jump into resident profiles, and document shift reports using live care-home data.'
   }
 
   if (role === 'nurse') {
@@ -427,6 +533,13 @@ function getResidentLabel(residentId: string | null, residentNamesById: Record<s
   }
 
   return residentNamesById[residentId] ?? 'Resident record unavailable'
+}
+
+function formatResidentSex(value: ResidentRecord['sex']) {
+  if (value === 'male') return 'Male'
+  if (value === 'female') return 'Female'
+  if (value === 'other') return 'Other'
+  return 'Unknown'
 }
 
 function capitalize(value: string) {
@@ -455,6 +568,19 @@ function formatOptionalDate(value: string | null) {
   return formatDateTime(value)
 }
 
+function formatShiftDate(value: string) {
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
 function formatDateTime(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
@@ -468,4 +594,3 @@ function formatDateTime(value: string) {
     minute: '2-digit',
   })
 }
-
