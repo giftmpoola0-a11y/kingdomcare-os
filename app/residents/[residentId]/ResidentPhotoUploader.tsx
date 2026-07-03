@@ -8,6 +8,8 @@ import { removeResidentPhotoAction, uploadResidentPhotoAction } from '../actions
 
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+const PHOTO_TYPE_ERROR_MESSAGE = 'Photo must be a JPG, JPEG, PNG, or WebP image.'
+const PHOTO_SIZE_ERROR_MESSAGE = 'Photo must be smaller than 5MB.'
 
 export interface ResidentPhotoUploaderProps {
   residentId: string
@@ -28,11 +30,11 @@ export function ResidentPhotoUploader({ residentId, photoUrl, initials, canManag
     if (!file) return
 
     if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-      setError('Photo must be a JPG, PNG, or WebP image.')
+      setError(PHOTO_TYPE_ERROR_MESSAGE)
       return
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      setError('Photo must be smaller than 5MB.')
+      setError(PHOTO_SIZE_ERROR_MESSAGE)
       return
     }
 

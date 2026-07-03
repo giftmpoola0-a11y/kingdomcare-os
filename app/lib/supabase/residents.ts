@@ -27,6 +27,8 @@ const RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 }
+const RESIDENT_PHOTO_TYPE_ERROR_MESSAGE = 'Photo must be a JPG, JPEG, PNG, or WebP image.'
+const RESIDENT_PHOTO_SIZE_ERROR_MESSAGE = 'Photo must be smaller than 5MB.'
 
 export interface ResidentActivityRecord {
   id: string
@@ -303,11 +305,11 @@ export async function uploadResidentPhoto(residentId: string, formData: FormData
 
   const extension = RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE[file.type]
   if (!extension) {
-    throw new Error('Photo must be a JPG, PNG, or WebP image.')
+    throw new Error(RESIDENT_PHOTO_TYPE_ERROR_MESSAGE)
   }
 
   if (file.size > MAX_RESIDENT_PHOTO_BYTES) {
-    throw new Error('Photo must be smaller than 5MB.')
+    throw new Error(RESIDENT_PHOTO_SIZE_ERROR_MESSAGE)
   }
 
   const existingResident = await getResidentRowById(supabase, careHomeId, residentId)
