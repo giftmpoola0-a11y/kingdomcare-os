@@ -161,6 +161,9 @@ export default async function DashboardPage() {
       <div className="v0-dashboard-theme dark">
         <DashboardShell
           roleLabel={dashboardRoleLabel(access.role)}
+          role={access.role}
+          userDisplayName={access.profile?.fullName || access.profile?.email || access.user?.email || ''}
+          careHomeName={access.careHomeName}
           activeResidentsCount={activeResidentsCount}
           openTasksCount={openTasksCount}
           overdueTasksCount={overdueTasksCount}
@@ -697,3 +700,4 @@ function medicationAlertLabel(alertType: MedicationAlertRecord['alertType']) {
       return 'Other Alert'
   }
 }
+

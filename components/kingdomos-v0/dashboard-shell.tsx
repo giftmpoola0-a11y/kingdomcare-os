@@ -11,10 +11,14 @@ import { CareTeam, type DashboardCareTeamMember } from "@/components/kingdomos-v
 import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
 import { RecentShiftReports } from "@/components/kingdomos-v0/dashboard/recent-shift-reports"
 import type { SidebarBadgeCounts } from "@/app/lib/sidebar-badge-counts"
+import type { MembershipRole } from "@/app/lib/supabase/access"
 import type { ShiftReportRecord } from "@/app/lib/supabase/shiftReports"
 
 interface DashboardShellProps {
   roleLabel?: string
+  role?: MembershipRole | null
+  userDisplayName?: string
+  careHomeName?: string
   activeResidentsCount?: number
   openTasksCount?: number
   overdueTasksCount?: number
@@ -29,6 +33,9 @@ interface DashboardShellProps {
 
 export function DashboardShell({
   roleLabel,
+  role,
+  userDisplayName,
+  careHomeName,
   activeResidentsCount,
   openTasksCount,
   overdueTasksCount,
@@ -44,10 +51,16 @@ export function DashboardShell({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <WelcomeHeader roleLabel={roleLabel} />
