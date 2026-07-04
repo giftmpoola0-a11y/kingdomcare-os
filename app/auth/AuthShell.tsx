@@ -1,5 +1,4 @@
-import Image from 'next/image'
-import Link from 'next/link'
+import { ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 interface AuthShellProps {
@@ -12,36 +11,28 @@ interface AuthShellProps {
 
 export default function AuthShell({ eyebrow, title, description, footer, children }: AuthShellProps) {
   return (
-    <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:px-6 lg:px-8">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(217,164,65,0.22),_transparent_32%),radial-gradient(circle_at_20%_20%,_rgba(89,120,177,0.16),_transparent_24%),linear-gradient(180deg,_rgba(7,10,16,1)_0%,_rgba(11,14,22,1)_48%,_rgba(8,11,18,1)_100%)]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top,_rgba(255,215,140,0.22),_transparent_55%)]" />
-      <div className="absolute left-1/2 top-1/2 -z-10 h-[28rem] w-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/8 blur-3xl" />
+    <main className="relative flex min-h-svh items-center justify-center overflow-hidden px-4 py-10">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(60%_55%_at_50%_12%,_rgba(255,255,255,0.08),_transparent_70%)]" />
+      <div
+        className="absolute -top-24 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full blur-3xl"
+        style={{ background: 'rgba(255, 255, 255, 0.07)' }}
+      />
 
-      <div className="w-full max-w-md">
-        <div className="rounded-[2rem] border border-white/10 bg-card/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur sm:p-8">
-          <div className="mb-8 text-center">
-            <Link href="/" className="inline-flex items-center justify-center rounded-[1.5rem] border border-white/10 bg-background/80 px-5 py-4 shadow-sm">
-              <Image
-                src="/brand/the-kingdom-care-homes-logo.png"
-                alt="The Kingdom Care Homes"
-                height={44}
-                width={220}
-                className="h-10 w-auto object-contain"
-                priority
-              />
-            </Link>
-            <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-primary">{eyebrow}</p>
-            <h1 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              {title}
-            </h1>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{description}</p>
+      <section className="relative w-full max-w-[520px]">
+        <div className="rounded-3xl border border-border bg-card/80 p-8 shadow-2xl shadow-black/40 backdrop-blur-sm sm:p-10">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-white/6 ring-1 ring-white/10">
+            <ShieldCheck className="size-6 text-foreground" aria-hidden="true" />
           </div>
 
-          <div className="space-y-5">{children}</div>
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/68">{eyebrow}</p>
+          <h1 className="mt-2 text-2xl font-semibold leading-tight text-balance sm:text-3xl">{title}</h1>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground text-pretty">{description}</p>
 
-          <div className="mt-6 border-t border-white/10 pt-5 text-center text-sm text-muted-foreground">{footer}</div>
+          <div className="mt-8">{children}</div>
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">{footer}</div>
         </div>
-      </div>
+      </section>
     </main>
   )
 }

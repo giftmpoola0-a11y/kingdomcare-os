@@ -8,7 +8,7 @@ import { signInAction } from '@/app/auth/actions'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 const INPUT_CLASS =
-  'w-full rounded-2xl border border-white/10 bg-background/70 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
+  'h-11 w-full rounded-xl border border-input bg-white/5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-white/22 focus:ring-2 focus:ring-white/12'
 
 function SignInContent() {
   const router = useRouter()
@@ -77,15 +77,15 @@ function SignInContent() {
       footer={
         <>
           Need an account?{' '}
-          <Link href="/auth/sign-up" className="font-semibold text-primary transition-colors hover:text-primary/80">
+          <Link href="/auth/sign-up" className="font-semibold text-foreground underline-offset-4 hover:underline">
             Sign up
           </Link>
         </>
       }
     >
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-sm font-medium text-foreground">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="email" className="text-sm font-medium text-foreground/90">
             Email
           </label>
           <input
@@ -99,8 +99,8 @@ function SignInContent() {
           />
         </div>
 
-        <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-sm font-medium text-foreground">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="password" className="text-sm font-medium text-foreground/90">
             Password
           </label>
           <input
@@ -114,19 +114,17 @@ function SignInContent() {
           />
         </div>
 
-        <div className="min-h-0">
-          {errorMessage ? (
-            <p className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200">
-              {errorMessage}
-            </p>
-          ) : null}
-        </div>
+        {errorMessage ? (
+          <p className="rounded-xl border border-red-400/18 bg-red-500/10 px-3.5 py-3 text-sm text-red-200">
+            {errorMessage}
+          </p>
+        ) : null}
 
         <button
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="w-full rounded-2xl bg-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(217,164,65,0.22)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-2 h-11 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-lg shadow-black/30 transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Signing in...' : 'Sign in'}
         </button>
@@ -148,20 +146,20 @@ function SignInFallback() {
     <AuthShell
       eyebrow="KingdomCare OS"
       title="Sign in to KingdomCare OS"
-      description="Loading the secure sign-in form..."
+      description="Access the care-home workspace for residents, tasks, incidents, medications, and shift reporting."
       footer={
         <>
           Need an account?{' '}
-          <Link href="/auth/sign-up" className="font-semibold text-primary transition-colors hover:text-primary/80">
+          <Link href="/auth/sign-up" className="font-semibold text-foreground underline-offset-4 hover:underline">
             Sign up
           </Link>
         </>
       }
     >
-      <div className="space-y-4">
-        <div className="h-14 rounded-2xl border border-white/10 bg-background/60" />
-        <div className="h-14 rounded-2xl border border-white/10 bg-background/60" />
-        <div className="h-12 rounded-2xl bg-primary/70" />
+      <div className="flex flex-col gap-4">
+        <div className="h-11 rounded-xl border border-input bg-white/5" />
+        <div className="h-11 rounded-xl border border-input bg-white/5" />
+        <div className="mt-2 h-11 rounded-xl bg-primary shadow-lg shadow-black/30" />
       </div>
     </AuthShell>
   )
