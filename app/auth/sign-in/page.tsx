@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import AuthShell from '@/app/auth/AuthShell'
 import { signInAction } from '@/app/auth/actions'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
@@ -73,6 +73,11 @@ function SignInContent() {
     }
   }
 
+  function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void handleSubmit()
+  }
+
   return (
     <AuthShell
       eyebrow="KingdomCare OS"
@@ -87,13 +92,14 @@ function SignInContent() {
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <form className="flex flex-col gap-4" onSubmit={handleFormSubmit}>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="email" className="text-sm font-medium text-foreground/92">
             Email
           </label>
           <input
             id="email"
+            name="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -109,6 +115,7 @@ function SignInContent() {
           </label>
           <input
             id="password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -124,10 +131,10 @@ function SignInContent() {
           </p>
         ) : null}
 
-        <button type="button" onClick={handleSubmit} disabled={submitting} className={BUTTON_CLASS}>
+        <button type="submit" disabled={submitting} className={BUTTON_CLASS}>
           {submitting ? 'Signing in...' : 'Sign in'}
         </button>
-      </div>
+      </form>
     </AuthShell>
   )
 }
