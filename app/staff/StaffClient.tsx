@@ -28,6 +28,7 @@ import { completeCaregiverTaskAction } from './actions'
 
 interface StaffClientProps {
   role: MembershipRole
+  userDisplayName: string
   careHomeName: string
   openTasks: TaskRecord[]
   recentIncidents: IncidentRecord[]
@@ -42,6 +43,7 @@ interface StaffClientProps {
 
 export default function StaffClient({
   role,
+  userDisplayName,
   careHomeName,
   openTasks,
   recentIncidents,
@@ -78,10 +80,16 @@ export default function StaffClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
@@ -638,3 +646,4 @@ function formatDateTime(value: string) {
     minute: '2-digit',
   })
 }
+

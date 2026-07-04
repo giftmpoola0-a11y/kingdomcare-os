@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -7,6 +7,7 @@ import { X, LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navItems } from '@/lib/kingdomos-v0-dashboard-data'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
+import type { MembershipRole } from '@/app/lib/supabase/access'
 
 const navHrefMap: Record<string, string> = {
   Dashboard: '/',
@@ -20,6 +21,8 @@ const navHrefMap: Record<string, string> = {
   Staff: '/staff',
   Account: '/account',
 }
+
+const ADMIN_ONLY_LABELS = new Set(['Manage Staff Access'])
 
 function isItemActive(pathname: string, label: string) {
   const href = navHrefMap[label] ?? '/'
@@ -59,12 +62,23 @@ export function AppSidebar({
   open,
   onClose,
   badgeCounts,
+  role,
+  careHomeName,
 }: {
   open: boolean
   onClose: () => void
   badgeCounts?: SidebarBadgeCounts
+  role?: MembershipRole | null
+  careHomeName?: string
 }) {
   const pathname = usePathname()
+  const visibleNavItems = navItems.filter((item) => {
+    if (role !== 'admin' && ADMIN_ONLY_LABELS.has(item.label)) {
+      return false
+    }
+
+    return true
+  })
 
   return (
     <>
@@ -109,12 +123,12 @@ export function AppSidebar({
 
         <div className="mx-4 mb-4 rounded-xl border border-sidebar-border bg-card/60 px-3.5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Current care home</p>
-          <p className="mt-0.5 text-sm font-medium text-sidebar-foreground">The Kingdom Care Homes</p>
+          <p className="mt-0.5 text-sm font-medium text-sidebar-foreground">{careHomeName?.trim() || 'Care home workspace'}</p>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const href = navHrefMap[item.label] ?? item.href
               const active = isItemActive(pathname, item.label)
               const badge = resolveItemBadge(item.label, item.badge, badgeCounts)

@@ -90,6 +90,7 @@ export default async function StaffPage() {
       <div className="v0-dashboard-theme dark">
         <StaffClient
           role={access.role as MembershipRole}
+          userDisplayName={access.profile?.fullName || access.profile?.email || access.user?.email || ''}
           careHomeName={access.careHomeName}
           openTasks={openTasks}
           recentIncidents={recentIncidents}
@@ -105,4 +106,5 @@ export default async function StaffPage() {
     </div>
   )
 }
+
 

@@ -3,8 +3,21 @@
 import { Menu, Search, Bell, ShieldCheck } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import type { MembershipRole } from "@/app/lib/supabase/access"
 
-export function AppTopbar({ onMenu }: { onMenu: () => void }) {
+interface AppTopbarProps {
+  onMenu: () => void
+  role?: MembershipRole | null
+  userDisplayName?: string | null
+}
+
+export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTopbarProps) {
+  const roleLabel = formatRoleLabel(role)
+  const badgeLabel = role ? roleLabel : 'Workspace'
+  const secondaryLabel = formatSecondaryLabel(role)
+  const userLabel = userDisplayName?.trim() || 'Signed-in user'
+  const initials = getInitials(userLabel)
+
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-md md:px-6">
       <button
@@ -15,12 +28,11 @@ export function AppTopbar({ onMenu }: { onMenu: () => void }) {
         <Menu className="size-5" />
       </button>
 
-      {/* Search */}
-      <div className="relative hidden flex-1 max-w-md sm:block">
+      <div className="relative hidden max-w-md flex-1 sm:block">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
-          placeholder="Search residents, tasks, notes…"
+          placeholder="Search residents, tasks, notes..."
           className="h-10 w-full rounded-xl border border-border bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
       </div>
@@ -28,7 +40,7 @@ export function AppTopbar({ onMenu }: { onMenu: () => void }) {
       <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
         <Badge className="gap-1.5 rounded-full border-transparent bg-accent px-3 py-1.5 text-accent-foreground hover:bg-accent">
           <ShieldCheck className="size-3.5" />
-          Admin
+          {badgeLabel}
         </Badge>
 
         <button
@@ -42,15 +54,44 @@ export function AppTopbar({ onMenu }: { onMenu: () => void }) {
         <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card py-1 pl-1 pr-3">
           <Avatar className="size-8">
             <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-              AD
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="hidden leading-tight md:block">
-            <p className="text-sm font-medium text-foreground">Admin</p>
-            <p className="text-xs text-muted-foreground">Owner</p>
+            <p className="text-sm font-medium text-foreground">{userLabel}</p>
+            <p className="text-xs text-muted-foreground">{secondaryLabel}</p>
           </div>
         </div>
       </div>
     </header>
   )
+}
+
+function formatRoleLabel(role: MembershipRole | null) {
+  if (role === 'admin') return 'Admin'
+  if (role === 'nurse') return 'Nurse'
+  if (role === 'caregiver') return 'Caregiver'
+  return 'Workspace access'
+}
+
+function formatSecondaryLabel(role: MembershipRole | null) {
+  if (role === 'admin') return 'Owner/Admin'
+  if (role === 'nurse' || role === 'caregiver') return 'Care Team'
+  return 'Workspace access'
+}
+
+function getInitials(value: string) {
+  const parts = value
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length === 0) {
+    return 'KC'
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
 }
