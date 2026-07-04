@@ -52,11 +52,16 @@ export default function ShiftReportDetailClient({
                   <span className="inline-flex size-2 rounded-full bg-indigo-400" aria-hidden="true" />
                   Shift Report
                 </div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  {shiftReport.residentName}
-                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+                    {shiftReport.residentName}
+                  </h1>
+                  <span className="rounded-full bg-indigo-500/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200 ring-1 ring-indigo-400/20">
+                    {shiftReport.shiftType}
+                  </span>
+                </div>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  Full saved shift report for this resident, loaded directly from Supabase.
+                  Review the saved shift summary, note entries, and report metadata for this resident.
                 </p>
               </div>
             </div>
@@ -66,25 +71,50 @@ export default function ShiftReportDetailClient({
             <DetailField label="Resident" value={shiftReport.residentName} />
             <DetailField label="Shift Date" value={formatShiftDate(shiftReport.shiftDate)} />
             <DetailField label="Shift Type" value={shiftReport.shiftType} />
-            <DetailField label="Created" value={formatCreatedAt(shiftReport.createdAt)} />
+            <DetailField label="Saved" value={formatCreatedAt(shiftReport.createdAt)} />
           </section>
 
-          <section className="mt-6 rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-            <div className="flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/25">
-                <ClipboardList className="size-5" />
-              </span>
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground">Summary</h2>
-                <p className="text-sm text-muted-foreground">
-                  Saved {formatSavedAt(shiftReport.createdAt)}
-                </p>
+          <section className="mt-6 grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+            <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/25">
+                  <ClipboardList className="size-5" />
+                </span>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Summary</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Saved {formatSavedAt(shiftReport.createdAt)}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-6 rounded-2xl border border-border bg-background/60 p-5">
-              <p className="text-sm leading-relaxed text-foreground">{shiftReport.summary}</p>
-            </div>
+              <div className="mt-6 rounded-2xl border border-border bg-background/60 p-5">
+                <p className="text-sm leading-relaxed text-foreground">{formatSummary(shiftReport.summary)}</p>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-400/25">
+                  <FileClock className="size-5" />
+                </span>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Report Metadata</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Practical saved fields for this report.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <DetailPanel label="Created by" value={formatCreatedBy(shiftReport.createdBy)} />
+                <DetailPanel label="Notes saved" value={`${shiftReport.notes.length}`} />
+                <DetailPanel label="Created" value={formatCreatedAt(shiftReport.createdAt)} />
+                <DetailPanel label="Updated" value={formatCreatedAt(shiftReport.updatedAt)} />
+                <DetailPanel label="Resident link" value={shiftReport.residentId ? 'Resident stored' : 'No resident id stored'} />
+                <DetailPanel label="Report id" value={shortId(shiftReport.id)} monospace />
+              </div>
+            </section>
           </section>
 
           <section className="mt-6 rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
@@ -111,7 +141,9 @@ export default function ShiftReportDetailClient({
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       {note.label}
                     </p>
-                    <p className="mt-3 text-sm leading-relaxed text-foreground">{note.value}</p>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-foreground">
+                      {formatNoteValue(note.value)}
+                    </p>
                   </article>
                 ))}
               </div>
@@ -136,6 +168,27 @@ function DetailField({
         {label}
       </p>
       <p className="mt-3 text-sm font-medium text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function DetailPanel({
+  label,
+  value,
+  monospace = false,
+}: {
+  label: string
+  value: string
+  monospace?: boolean
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/60 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        {label}
+      </p>
+      <p className={`mt-3 text-sm text-foreground ${monospace ? 'font-mono text-xs sm:text-sm' : ''}`}>
+        {value}
+      </p>
     </div>
   )
 }
@@ -181,4 +234,32 @@ function formatSavedAt(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatSummary(value: string) {
+  const trimmed = value.trim()
+  return trimmed || 'No summary was saved for this shift report.'
+}
+
+function formatNoteValue(value: string) {
+  const trimmed = value.trim()
+  return trimmed || 'No note detail was saved.'
+}
+
+function formatCreatedBy(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+
+  return trimmed
+}
+
+function shortId(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+
+  return trimmed.length > 18 ? `${trimmed.slice(0, 8)}...${trimmed.slice(-6)}` : trimmed
 }

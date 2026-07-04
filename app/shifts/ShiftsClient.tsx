@@ -1,12 +1,14 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useState } from 'react'
-import { ClipboardList, FileClock, NotebookPen } from 'lucide-react'
+import { ArrowRight, ClipboardList, FileClock, NotebookPen, UserRound } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
+import { cn } from '@/lib/utils'
 
 export interface ShiftsClientProps {
   shiftReports: ShiftReportRecord[]
@@ -93,11 +95,16 @@ export default function ShiftsClient({
                   <Link
                     key={report.id}
                     href={`/shifts/${report.id}`}
-                    className="block rounded-2xl border border-border bg-background/60 p-4 transition-colors hover:bg-background/80 sm:p-5"
+                    className={cn(
+                      'group block rounded-2xl border p-4 transition-colors hover:bg-background/80 sm:p-5',
+                      report.summary.trim()
+                        ? 'border-border bg-background/60'
+                        : 'border-border/80 bg-background/50',
+                    )}
                   >
                     <article>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-semibold text-foreground">
                               {report.residentName}
@@ -106,23 +113,40 @@ export default function ShiftsClient({
                               {report.shiftType}
                             </span>
                           </div>
-                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <MetaPill icon={<FileClock className="size-3.5" />}>
+                              Shift date: {formatShiftDate(report.shiftDate)}
+                            </MetaPill>
+                            <MetaPill icon={<UserRound className="size-3.5" />}>
+                              Saved by: {formatCreatedBy(report.createdBy)}
+                            </MetaPill>
+                            <MetaPill>Notes: {report.notes.length}</MetaPill>
+                          </div>
+
+                          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                             {truncateSummary(report.summary)}
                           </p>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-muted-foreground">
-                          <FileClock className="size-4" />
-                          <span>{formatCreatedAt(report.createdAt)}</span>
+                        <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
+                          <div className="flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-muted-foreground">
+                            <FileClock className="size-4" />
+                            <span>{formatCreatedAt(report.createdAt)}</span>
+                          </div>
+                          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground transition-colors group-hover:text-indigo-200">
+                            View details
+                            <ArrowRight className="size-4" />
+                          </span>
                         </div>
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
-                          Shift date: {formatShiftDate(report.shiftDate)}
+                          Reported: {formatSavedAt(report.createdAt)}
                         </span>
                         <span className="rounded-full border border-border bg-card/70 px-3 py-1.5">
-                          Saved: {formatSavedAt(report.createdAt)}
+                          Updated: {formatUpdatedAt(report.updatedAt)}
                         </span>
                       </div>
                     </article>
@@ -137,8 +161,20 @@ export default function ShiftsClient({
   )
 }
 
+function MetaPill({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5">
+      {icon}
+      <span>{children}</span>
+    </span>
+  )
+}
+
 function truncateSummary(summary: string) {
   const trimmed = summary.trim()
+  if (!trimmed) {
+    return 'No summary was saved for this shift report.'
+  }
   if (trimmed.length <= 180) {
     return trimmed
   }
@@ -180,8 +216,33 @@ function formatSavedAt(value: string) {
     return value
   }
 
-  return parsed.toLocaleTimeString('en-GB', {
+  return parsed.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatUpdatedAt(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatCreatedBy(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+
+  return trimmed.length > 14 ? `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}` : trimmed
 }
