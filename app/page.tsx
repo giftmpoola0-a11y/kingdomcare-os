@@ -30,6 +30,10 @@ import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   getCurrentCareHomeSidebarBadgeCounts,
 } from '@/app/lib/supabase/sidebar-badge-counts'
+import {
+  getCurrentCareHomeShiftReports,
+  type ShiftReportRecord,
+} from '@/app/lib/supabase/shiftReports'
 import { getCurrentCareHomeTasks, getOpenCurrentCareHomeTasks, type TaskRecord } from '@/app/lib/supabase/tasks'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -57,13 +61,14 @@ export default async function DashboardPage() {
 
   let activeResidentsCount = 0
   let openTasksCount = 0
-  let medicationAlertsCount = 0
-  let recentIncidentsCount = 0
+  let overdueTasksCount = 0
+  let openIncidentsCount = 0
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
   let recentActivityItems: DashboardRecentActivityItem[] = []
   let careAttentionItems: DashboardCareAttentionItem[] = []
   let operationalQueueItems: DashboardOperationalQueueItem[] = []
   let careTeamMembers: DashboardCareTeamMember[] = []
+  let recentShiftReports: ShiftReportRecord[] = []
 
   try {
     const activeResidents = await getActiveCurrentCareHomeResidents()
@@ -75,8 +80,6 @@ export default async function DashboardPage() {
   try {
     sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
     openTasksCount = sidebarBadgeCounts.openTasksCount
-    medicationAlertsCount = sidebarBadgeCounts.medicationAlertsCount
-    recentIncidentsCount = sidebarBadgeCounts.recentIncidentsCount
   } catch (error) {
     console.error('Failed to load sidebar badge counts for dashboard:', error)
   }
@@ -100,20 +103,23 @@ export default async function DashboardPage() {
   }
 
   try {
-    const [residents, recentResidents, tasks, incidents, medications, medicationAlerts] = await Promise.all([
+    const [residents, recentResidents, tasks, incidents, shiftReports, medications, medicationAlerts] = await Promise.all([
       getCurrentCareHomeResidents(),
       getRecentCurrentCareHomeResidents(5),
       getCurrentCareHomeTasks(),
       getCurrentCareHomeIncidents(),
+      getCurrentCareHomeShiftReports(4),
       getCurrentCareHomeMedications(),
       getCurrentCareHomeMedicationAlerts(),
     ])
 
+    recentShiftReports = shiftReports
     recentActivityItems = buildRecentActivityItems({
       residents,
       recentResidents,
       tasks,
       incidents,
+      shiftReports,
       medications,
       medicationAlerts,
     })
@@ -128,6 +134,10 @@ export default async function DashboardPage() {
       getOpenCurrentCareHomeIncidents(),
       getOpenCurrentCareHomeMedicationAlerts(),
     ])
+
+    openTasksCount = openTasks.length
+    overdueTasksCount = countOverdueTasks(openTasks)
+    openIncidentsCount = openIncidents.length
 
     careAttentionItems = buildCareAttentionItems({
       residents,
@@ -150,14 +160,16 @@ export default async function DashboardPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <DashboardShell
+          roleLabel={dashboardRoleLabel(access.role)}
           activeResidentsCount={activeResidentsCount}
           openTasksCount={openTasksCount}
-          medicationAlertsCount={medicationAlertsCount}
-          recentIncidentsCount={recentIncidentsCount}
+          overdueTasksCount={overdueTasksCount}
+          openIncidentsCount={openIncidentsCount}
           recentActivityItems={recentActivityItems}
           careAttentionItems={careAttentionItems}
           operationalQueueItems={operationalQueueItems}
           careTeamMembers={careTeamMembers}
+          recentShiftReports={recentShiftReports}
           sidebarBadgeCounts={sidebarBadgeCounts}
         />
       </div>
@@ -194,6 +206,7 @@ function buildRecentActivityItems({
   recentResidents,
   tasks,
   incidents,
+  shiftReports,
   medications,
   medicationAlerts,
 }: {
@@ -201,6 +214,7 @@ function buildRecentActivityItems({
   recentResidents: ResidentActivityRecord[]
   tasks: TaskRecord[]
   incidents: IncidentRecord[]
+  shiftReports: ShiftReportRecord[]
   medications: MedicationRecord[]
   medicationAlerts: MedicationAlertRecord[]
 }): DashboardRecentActivityItem[] {
@@ -213,6 +227,7 @@ function buildRecentActivityItems({
     description: resident.status === 'archived' ? 'Resident record was later archived.' : 'New resident record created.',
     timestamp: resident.createdAt,
     tone: resident.status === 'archived' ? 'gray' : 'green',
+    href: '/residents',
   }))
 
   const taskItems: DashboardRecentActivityItem[] = tasks.map((task) => ({
@@ -230,9 +245,10 @@ function buildRecentActivityItems({
       task.priority ? `Priority: ${task.priority}` : null,
     ]
       .filter(Boolean)
-      .join(' · ') || 'Task activity recorded.',
+      .join(' | ') || 'Task activity recorded.',
     timestamp: task.completedAt ?? task.updatedAt ?? task.createdAt,
     tone: task.status === 'completed' ? 'green' : task.status === 'archived' ? 'gray' : 'amber',
+    href: '/tasks',
   }))
 
   const incidentItems: DashboardRecentActivityItem[] = incidents.map((incident) => ({
@@ -250,7 +266,7 @@ function buildRecentActivityItems({
       severityLabel(incident.severity),
     ]
       .filter(Boolean)
-      .join(' · ') || 'Incident activity recorded.',
+      .join(' | ') || 'Incident activity recorded.',
     timestamp: incident.resolvedAt ?? incident.occurredAt ?? incident.createdAt,
     tone:
       incident.status === 'resolved'
@@ -262,6 +278,20 @@ function buildRecentActivityItems({
             : incident.severity === 'high' || incident.severity === 'critical'
               ? 'red'
               : 'amber',
+    href: '/incidents',
+  }))
+
+  const shiftReportItems: DashboardRecentActivityItem[] = shiftReports.map((report) => ({
+    id: `shift-report-${report.id}`,
+    type: 'shift_report',
+    title: `Shift report saved: ${report.residentName}`,
+    description: [
+      report.shiftType,
+      report.summary.trim() ? truncateText(report.summary, 88) : 'No summary saved.',
+    ].join(' | '),
+    timestamp: report.updatedAt ?? report.createdAt,
+    tone: 'green',
+    href: '/shifts',
   }))
 
   const medicationItems: DashboardRecentActivityItem[] = medications.map((medication) => ({
@@ -281,7 +311,7 @@ function buildRecentActivityItems({
       medication.frequency || null,
     ]
       .filter(Boolean)
-      .join(' · ') || 'Medication record updated.',
+      .join(' | ') || 'Medication record updated.',
     timestamp: medication.updatedAt ?? medication.createdAt,
     tone:
       medication.status === 'active'
@@ -291,6 +321,7 @@ function buildRecentActivityItems({
           : medication.status === 'discontinued'
             ? 'red'
             : 'gray',
+    href: '/medications',
   }))
 
   const alertItems: DashboardRecentActivityItem[] = medicationAlerts.map((alert) => ({
@@ -307,7 +338,7 @@ function buildRecentActivityItems({
       alert.message,
     ]
       .filter(Boolean)
-      .join(' · '),
+      .join(' | '),
     timestamp: alert.resolvedAt ?? alert.updatedAt ?? alert.createdAt,
     tone:
       alert.status === 'resolved'
@@ -317,12 +348,13 @@ function buildRecentActivityItems({
           : alert.severity === 'high' || alert.severity === 'critical'
             ? 'red'
             : 'amber',
+    href: '/medications',
   }))
 
-  return [...residentItems, ...taskItems, ...incidentItems, ...medicationItems, ...alertItems]
+  return [...residentItems, ...taskItems, ...incidentItems, ...shiftReportItems, ...medicationItems, ...alertItems]
     .filter((item) => item.timestamp)
     .sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp))
-    .slice(0, 5)
+    .slice(0, 6)
 }
 
 function buildCareAttentionItems({
@@ -349,7 +381,7 @@ function buildCareAttentionItems({
         task.dueAt ? `Due ${formatShortDate(task.dueAt)}` : null,
       ]
         .filter(Boolean)
-        .join(' · '),
+        .join(' | '),
       residentName: task.residentId ? residentNameById.get(task.residentId) ?? null : null,
       severity: task.priority === 'urgent' ? 'urgent' : 'warning',
       href: '/tasks',
@@ -364,7 +396,7 @@ function buildCareAttentionItems({
       incident.location || null,
     ]
       .filter(Boolean)
-      .join(' · '),
+      .join(' | '),
     residentName: incident.residentId ? residentNameById.get(incident.residentId) ?? null : null,
     severity:
       incident.severity === 'critical' || incident.severity === 'high'
@@ -384,7 +416,7 @@ function buildCareAttentionItems({
       alert.message,
     ]
       .filter(Boolean)
-      .join(' · '),
+      .join(' | '),
     residentName: alert.residentId ? residentNameById.get(alert.residentId) ?? null : null,
     severity:
       alert.severity === 'critical' || alert.severity === 'high'
@@ -438,7 +470,7 @@ function buildOperationalQueueItems({
           `Priority: ${task.priority}`,
         ]
           .filter(Boolean)
-          .join(' · '),
+          .join(' | '),
         dueLabel: dueDate ? `Due ${formatQueueDateTime(task.dueAt as string)}` : undefined,
         status: isOverdue ? 'overdue' : isInProgress ? 'in_progress' : 'upcoming',
         severity: isOverdue || task.priority === 'urgent' ? 'urgent' : isDueSoon || task.priority === 'high' ? 'warning' : 'normal',
@@ -456,7 +488,7 @@ function buildOperationalQueueItems({
       incident.status === 'reviewing' ? 'Needs review' : 'Open incident',
     ]
       .filter(Boolean)
-      .join(' · '),
+      .join(' | '),
     dueLabel: `Logged ${formatQueueDateTime(incident.occurredAt)}`,
     status: 'review',
     severity: incident.severity === 'critical' || incident.severity === 'high' ? 'urgent' : 'warning',
@@ -479,7 +511,7 @@ function buildOperationalQueueItems({
           alert.message,
         ]
           .filter(Boolean)
-          .join(' · '),
+          .join(' | '),
         dueLabel: alert.dueAt ? `Due ${formatQueueDateTime(alert.dueAt)}` : `Logged ${formatQueueDateTime(alert.createdAt)}`,
         status: isOverdue ? 'overdue' : alert.status === 'reviewing' ? 'review' : 'upcoming',
         severity:
@@ -574,6 +606,40 @@ function careAttentionSeverityRank(severity: DashboardCareAttentionItem['severit
     default:
       return 2
   }
+}
+
+function dashboardRoleLabel(role: string | null | undefined) {
+  switch (role) {
+    case 'admin':
+      return 'Admin'
+    case 'nurse':
+      return 'Nurse'
+    case 'caregiver':
+      return 'Caregiver'
+    default:
+      return 'Care Team'
+  }
+}
+
+function countOverdueTasks(tasks: TaskRecord[]) {
+  const now = Date.now()
+  return tasks.filter((task) => {
+    if (!task.dueAt) {
+      return false
+    }
+
+    const dueTime = Date.parse(task.dueAt)
+    return !Number.isNaN(dueTime) && dueTime < now
+  }).length
+}
+
+function truncateText(value: string, length: number) {
+  const trimmed = value.trim()
+  if (trimmed.length <= length) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, Math.max(length - 3, 1)).trimEnd()}...`
 }
 
 function formatShortDate(value: string) {

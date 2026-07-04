@@ -9,29 +9,35 @@ import { TodayGlance, type DashboardOperationalQueueItem } from "@/components/ki
 import { CareAttention, type DashboardCareAttentionItem } from "@/components/kingdomos-v0/dashboard/care-attention"
 import { CareTeam, type DashboardCareTeamMember } from "@/components/kingdomos-v0/dashboard/staff-on-duty"
 import { RecentActivity, type DashboardRecentActivityItem } from "@/components/kingdomos-v0/dashboard/recent-activity"
+import { RecentShiftReports } from "@/components/kingdomos-v0/dashboard/recent-shift-reports"
 import type { SidebarBadgeCounts } from "@/app/lib/sidebar-badge-counts"
+import type { ShiftReportRecord } from "@/app/lib/supabase/shiftReports"
 
 interface DashboardShellProps {
+  roleLabel?: string
   activeResidentsCount?: number
   openTasksCount?: number
-  medicationAlertsCount?: number
-  recentIncidentsCount?: number
+  overdueTasksCount?: number
+  openIncidentsCount?: number
   recentActivityItems?: DashboardRecentActivityItem[]
   careAttentionItems?: DashboardCareAttentionItem[]
   operationalQueueItems?: DashboardOperationalQueueItem[]
   careTeamMembers?: DashboardCareTeamMember[]
+  recentShiftReports?: ShiftReportRecord[]
   sidebarBadgeCounts?: SidebarBadgeCounts
 }
 
 export function DashboardShell({
+  roleLabel,
   activeResidentsCount,
   openTasksCount,
-  medicationAlertsCount,
-  recentIncidentsCount,
+  overdueTasksCount,
+  openIncidentsCount,
   recentActivityItems,
   careAttentionItems,
   operationalQueueItems,
   careTeamMembers,
+  recentShiftReports,
   sidebarBadgeCounts,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -44,14 +50,14 @@ export function DashboardShell({
         <AppTopbar onMenu={() => setSidebarOpen(true)} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
-          <WelcomeHeader />
+          <WelcomeHeader roleLabel={roleLabel} />
 
           <div className="mt-7">
             <KpiCards
               activeResidentsCount={activeResidentsCount}
               openTasksCount={openTasksCount}
-              medicationAlertsCount={medicationAlertsCount}
-              recentIncidentsCount={recentIncidentsCount}
+              overdueTasksCount={overdueTasksCount}
+              openIncidentsCount={openIncidentsCount}
             />
           </div>
 
@@ -62,8 +68,9 @@ export function DashboardShell({
             </div>
 
             <div className="flex flex-col gap-6">
-              <CareTeam members={careTeamMembers} />
+              <RecentShiftReports reports={recentShiftReports} />
               <RecentActivity items={recentActivityItems} />
+              <CareTeam members={careTeamMembers} />
             </div>
           </div>
         </main>

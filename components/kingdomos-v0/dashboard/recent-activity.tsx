@@ -1,8 +1,10 @@
-﻿"use client"
+"use client"
 
+import Link from "next/link"
 import {
   Activity as ActivityIcon,
   CheckCircle2,
+  ClipboardList,
   ListChecks,
   Pill,
   ShieldAlert,
@@ -10,16 +12,16 @@ import {
   Users,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { recentActivity } from "@/lib/kingdomos-v0-dashboard-data"
 import { cn } from "@/lib/utils"
 
 export type DashboardRecentActivityItem = {
   id: string
-  type: "resident" | "task" | "incident" | "medication" | "medication_alert"
+  type: "resident" | "task" | "incident" | "shift_report" | "medication" | "medication_alert"
   title: string
   description: string
   timestamp: string
   tone: "green" | "amber" | "red" | "gray"
+  href?: string
 }
 
 const activityToneClasses: Record<DashboardRecentActivityItem["tone"], string> = {
@@ -33,39 +35,29 @@ const activityIconMap: Record<DashboardRecentActivityItem["type"], typeof Users>
   resident: Users,
   task: ListChecks,
   incident: TriangleAlert,
+  shift_report: ClipboardList,
   medication: Pill,
   medication_alert: ShieldAlert,
 }
 
-function getMockActivityItems(): DashboardRecentActivityItem[] {
-  return recentActivity.map((item, index) => ({
-    id: `mock-${index}`,
-    type: index === 2 ? "incident" : index === 3 ? "resident" : index === 4 ? "task" : "medication",
-    title: `${item.who} ${item.action} ${item.target}`,
-    description: "Preview activity",
-    timestamp: item.time,
-    tone: index === 2 ? "red" : index === 4 ? "green" : "amber",
-  }))
-}
-
 export function RecentActivity({ items }: { items?: DashboardRecentActivityItem[] }) {
-  const resolvedItems = items ?? getMockActivityItems()
+  const resolvedItems = items ?? []
 
   return (
     <Card className="gap-0 rounded-2xl border-border bg-card p-6 shadow-sm">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border/80">
             <ActivityIcon className="size-[18px]" />
           </span>
           <div>
             <h2 className="text-lg font-semibold text-foreground">Recent activity</h2>
-            <p className="text-xs text-muted-foreground">Latest updates from your care home</p>
+            <p className="text-xs text-muted-foreground">Latest live updates from your care home</p>
           </div>
         </div>
-        <a href="#" className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
-          View all
-        </a>
+        <Link href="/reports" className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+          View reports
+        </Link>
       </div>
 
       {resolvedItems.length === 0 ? (
@@ -76,8 +68,8 @@ export function RecentActivity({ items }: { items?: DashboardRecentActivityItem[
         <ul className="mt-5 flex flex-col gap-1">
           {resolvedItems.map((item) => {
             const Icon = activityIconMap[item.type]
-            return (
-              <li key={item.id} className="flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-accent/40">
+            const content = (
+              <>
                 <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full", activityToneClasses[item.tone])}>
                   <Icon className="size-4" />
                 </span>
@@ -89,6 +81,20 @@ export function RecentActivity({ items }: { items?: DashboardRecentActivityItem[
                     <p className="text-xs text-muted-foreground">{formatTimestamp(item.timestamp)}</p>
                   </div>
                 </div>
+              </>
+            )
+
+            return (
+              <li key={item.id}>
+                {item.href ? (
+                  <Link href={item.href} className="flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-accent/40">
+                    {content}
+                  </Link>
+                ) : (
+                  <div className="flex items-start gap-3 rounded-xl px-2 py-2.5">
+                    {content}
+                  </div>
+                )}
               </li>
             )
           })}
