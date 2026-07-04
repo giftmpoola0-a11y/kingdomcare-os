@@ -6,7 +6,7 @@ import PageShell from '@/app/components/ui/PageShell'
 import PageHeader from '@/app/components/ui/PageHeader'
 import SectionCard from '@/app/components/ui/SectionCard'
 import StatusBadge from '@/app/components/ui/StatusBadge'
-import { getCurrentUserAccess, normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
+import { getCurrentUserAccess, type MembershipRole } from '@/app/lib/supabase/access'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 interface AccountState {
@@ -329,8 +329,4 @@ export default function AccountPage() {
       </main>
     </PageShell>
   )
-}
-
-function normalizeRole(role: string | null | undefined): MembershipRole | null {
-  return normalizeMembershipRole(role)
 }
