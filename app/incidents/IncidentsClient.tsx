@@ -1,9 +1,12 @@
-﻿'use client'
+'use client'
 
+import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   ClipboardList,
   MapPin,
@@ -257,6 +260,14 @@ export default function IncidentsClient({
                   Capture, review, and resolve resident incidents using real Supabase-backed records.
                 </p>
               </div>
+
+              <Link
+                href="/incidents/new"
+                className="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              >
+                Report incident
+                <ArrowRight className="size-4" />
+              </Link>
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -516,7 +527,7 @@ export default function IncidentsClient({
                   {filteredIncidents.map((incident) => {
                     const residentName =
                       activeResidents.find((resident) => resident.id === incident.residentId)?.name ??
-                      'Resident'
+                      'General incident'
                     const allowResolve =
                       canManageIncidents &&
                       incident.status !== 'resolved' &&
@@ -544,21 +555,36 @@ export default function IncidentsClient({
                               {formatDateTime(incident.occurredAt)}
                               {incident.location ? ` - ${incident.location}` : ''}
                             </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <MetaPill>
+                                {incident.followUpRequired ? 'Follow-up required' : 'No follow-up flagged'}
+                              </MetaPill>
+                              {incident.resolvedAt && (
+                                <MetaPill>Resolved {formatDateTime(incident.resolvedAt)}</MetaPill>
+                              )}
+                            </div>
                           </div>
 
-                          {canManageIncidents && (
-                            <div className="flex flex-wrap gap-2">
-                              {allowResolve && (
-                                <button
-                                  type="button"
-                                  disabled={isPending}
-                                  onClick={() => handleResolve(incident.id)}
-                                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/35 transition-colors hover:bg-emerald-500/20 disabled:opacity-60"
-                                >
-                                  <CheckCircle2 className="size-3.5" />
-                                  Resolve
-                                </button>
-                              )}
+                          <div className="flex flex-wrap gap-2">
+                            <Link
+                              href={`/incidents/${incident.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background/70 px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
+                            >
+                              View details
+                              <ArrowRight className="size-3.5" />
+                            </Link>
+                            {canManageIncidents && allowResolve && (
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleResolve(incident.id)}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/35 transition-colors hover:bg-emerald-500/20 disabled:opacity-60"
+                              >
+                                <CheckCircle2 className="size-3.5" />
+                                Resolve
+                              </button>
+                            )}
+                            {canManageIncidents && (
                               <button
                                 type="button"
                                 disabled={isPending}
@@ -568,8 +594,8 @@ export default function IncidentsClient({
                                 <Trash2 className="size-3.5" />
                                 Delete
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
 
                         <div className="mt-4 space-y-3 border-t border-border pt-4">
@@ -661,6 +687,14 @@ function IncidentField({ label, value }: { label: string; value: string }) {
       </p>
       <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-foreground/85">{value}</p>
     </div>
+  )
+}
+
+function MetaPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full border border-border bg-background/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+      {children}
+    </span>
   )
 }
 

@@ -54,8 +54,10 @@ export async function createIncidentFromFormAction(
     }
   }
 
+  let incidentId: string
+
   try {
-    await createIncident({
+    const incident = await createIncident({
       residentId,
       incidentType,
       severity: severity ?? 'medium',
@@ -67,6 +69,8 @@ export async function createIncidentFromFormAction(
       followUpRequired: Boolean(followUpNotes),
       followUpNotes,
     })
+
+    incidentId = incident.id
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'Failed to save incident. Please try again.',
@@ -78,7 +82,8 @@ export async function createIncidentFromFormAction(
   revalidatePath('/reports')
   revalidatePath('/staff')
   revalidatePath('/incidents')
-  redirect('/incidents')
+  revalidatePath(`/incidents/${incidentId}`)
+  redirect(`/incidents/${incidentId}`)
 }
 
 function readOptionalText(formData: FormData, field: string) {

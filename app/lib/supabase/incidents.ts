@@ -129,6 +129,13 @@ export async function getRecentCurrentCareHomeIncidents(limit = 10): Promise<Inc
   return (data ?? []).map((row) => mapIncidentRowToRecord(row))
 }
 
+export async function getCurrentCareHomeIncidentById(incidentId: string): Promise<IncidentRecord | null> {
+  const { supabase, careHomeId } = await getIncidentContext('read')
+  const incident = await getIncidentRowById(supabase, careHomeId, incidentId)
+
+  return incident ? mapIncidentRowToRecord(incident) : null
+}
+
 export async function createIncident(input: CreateIncidentInput): Promise<IncidentRecord> {
   const { supabase, careHomeId, userId } = await getIncidentContext('write')
   const residentId = normalizeOptionalText(input.residentId)
