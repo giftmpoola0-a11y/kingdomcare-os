@@ -8,7 +8,11 @@ import { signInAction } from '@/app/auth/actions'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
 const INPUT_CLASS =
-  'h-11 w-full rounded-xl border border-input bg-white/5 px-3.5 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:border-white/22 focus:ring-2 focus:ring-white/12'
+  'h-11 w-full rounded-xl border border-input bg-white/[0.04] px-3.5 text-sm text-foreground placeholder:text-white/32 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] outline-none transition-[border-color,box-shadow,background-color] duration-200 hover:border-white/14 focus:border-white/20 focus:bg-white/[0.06] focus:ring-4 focus:ring-white/7'
+
+const LINK_CLASS = 'font-semibold text-foreground/88 underline-offset-4 transition-all duration-200 hover:text-foreground hover:underline hover:opacity-80'
+const BUTTON_CLASS =
+  'mt-2 h-11 w-full rounded-xl bg-primary text-base font-semibold tracking-[-0.01em] text-primary-foreground shadow-[0_14px_32px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-px hover:bg-white hover:shadow-[0_18px_38px_rgba(0,0,0,0.34)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60'
 
 function SignInContent() {
   const router = useRouter()
@@ -77,7 +81,7 @@ function SignInContent() {
       footer={
         <>
           Need an account?{' '}
-          <Link href="/auth/sign-up" className="font-semibold text-foreground underline-offset-4 hover:underline">
+          <Link href="/auth/sign-up" className={LINK_CLASS}>
             Sign up
           </Link>
         </>
@@ -85,7 +89,7 @@ function SignInContent() {
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium text-foreground/90">
+          <label htmlFor="email" className="text-sm font-medium text-foreground/92">
             Email
           </label>
           <input
@@ -100,7 +104,7 @@ function SignInContent() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-foreground/90">
+          <label htmlFor="password" className="text-sm font-medium text-foreground/92">
             Password
           </label>
           <input
@@ -120,12 +124,7 @@ function SignInContent() {
           </p>
         ) : null}
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="mt-2 h-11 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-lg shadow-black/30 transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="button" onClick={handleSubmit} disabled={submitting} className={BUTTON_CLASS}>
           {submitting ? 'Signing in...' : 'Sign in'}
         </button>
       </div>
@@ -150,16 +149,16 @@ function SignInFallback() {
       footer={
         <>
           Need an account?{' '}
-          <Link href="/auth/sign-up" className="font-semibold text-foreground underline-offset-4 hover:underline">
+          <Link href="/auth/sign-up" className={LINK_CLASS}>
             Sign up
           </Link>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        <div className="h-11 rounded-xl border border-input bg-white/5" />
-        <div className="h-11 rounded-xl border border-input bg-white/5" />
-        <div className="mt-2 h-11 rounded-xl bg-primary shadow-lg shadow-black/30" />
+        <div className="h-11 rounded-xl border border-input bg-white/[0.04]" />
+        <div className="h-11 rounded-xl border border-input bg-white/[0.04]" />
+        <div className="mt-2 h-11 rounded-xl bg-primary shadow-[0_14px_32px_rgba(0,0,0,0.28)]" />
       </div>
     </AuthShell>
   )
