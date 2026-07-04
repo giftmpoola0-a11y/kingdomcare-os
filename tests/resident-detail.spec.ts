@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100'
 
 test.describe('/residents/[residentId] unauthenticated guard', () => {
   test('redirects unauthenticated visitor to sign-in', async ({ page }) => {

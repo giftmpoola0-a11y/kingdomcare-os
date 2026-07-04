@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100'
 const E2E_TEST_EMAIL = process.env.E2E_TEST_EMAIL
 const E2E_TEST_PASSWORD = process.env.E2E_TEST_PASSWORD
 

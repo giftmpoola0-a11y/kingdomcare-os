@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100'
 
 /**
  * Smoke tests for the /residents page after Supabase migration.
  *
- * These tests require the app to be running on localhost:3000.
+ * These tests require the app to be running on 127.0.0.1:3100.
  * Run with: npm start (after npm run build)
  *
  * Authenticated tests require a real care-home admin session; they are
