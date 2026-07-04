@@ -133,6 +133,10 @@ export default function MedicationsClient({
     () => new Map(activeResidents.map((r) => [r.id, r.name])),
     [activeResidents],
   )
+  const medicationNameMap = useMemo(
+    () => new Map(initialMedications.map((medication) => [medication.id, medication.medicationName])),
+    [initialMedications],
+  )
 
   // Filtered medications
   const filteredMeds = useMemo(() => {
@@ -328,6 +332,13 @@ export default function MedicationsClient({
             >
               {loadError ?? actionError}
             </p>
+          )}
+
+          {!canManage && (
+            <section className="mt-4 rounded-2xl border border-border bg-card/80 px-4 py-4 text-sm text-muted-foreground shadow-sm sm:px-5">
+              Review current medication records and alert history here. Medication changes and alert updates remain
+              limited to admin and nurse roles.
+            </section>
           )}
 
           {/* â”€â”€ Main grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
@@ -541,6 +552,9 @@ export default function MedicationsClient({
                     <p className="mt-1 text-sm text-muted-foreground">
                       {filteredMeds.length} medication{filteredMeds.length !== 1 ? 's' : ''} shown
                     </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Review resident links, dosage details, schedule notes, and record timestamps in one place.
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {MED_FILTERS.map((f) => (
@@ -744,6 +758,9 @@ export default function MedicationsClient({
                     <p className="mt-1 text-sm text-muted-foreground">
                       {filteredAlerts.length} alert{filteredAlerts.length !== 1 ? 's' : ''} shown
                     </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Open, resolved, and archived alerts keep their saved severity, timing, and linked resident details.
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {ALERT_FILTERS.map((f) => (
@@ -762,9 +779,7 @@ export default function MedicationsClient({
                         alert={alert}
                         residentName={alert.residentId ? (residentNameMap.get(alert.residentId) ?? null) : null}
                         medicationName={
-                          alert.medicationId
-                            ? (initialMedications.find((m) => m.id === alert.medicationId)?.medicationName ?? null)
-                            : null
+                          alert.medicationId ? (medicationNameMap.get(alert.medicationId) ?? null) : null
                         }
                         canManage={canManage}
                         isPending={isPending}
@@ -863,6 +878,15 @@ function FieldError({ message }: { message: string }) {
   return <p role="alert" className="text-xs text-rose-300">{message}</p>
 }
 
+function MetadataItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/55 px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm text-foreground">{value}</p>
+    </div>
+  )
+}
+
 // â”€â”€ Medication card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface MedicationCardProps {
@@ -895,38 +919,51 @@ function MedicationCard({
     archived: 'border-border bg-background/60',
   }[med.status]
 
+  const scheduleSummary = [med.dosage || null, med.route || null, med.frequency || null].filter(Boolean).join(' | ')
+
   return (
     <article className={cn('rounded-2xl border p-4 transition-colors', statusClasses)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">{med.medicationName}</h3>
-            <MedStatusBadge status={med.status} />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground">{med.medicationName}</h3>
+                <MedStatusBadge status={med.status} />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">Resident: {residentName}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Updated {formatDateTime(med.updatedAt)}</p>
           </div>
 
-          <p className="text-xs text-muted-foreground">Resident: {residentName}</p>
+          {scheduleSummary && <p className="mt-4 text-sm text-foreground/90">{scheduleSummary}</p>}
 
-          {(med.dosage || med.route || med.frequency) && (
-            <p className="text-xs text-muted-foreground">
-              {[med.dosage, med.route, med.frequency].filter(Boolean).join(' Â· ')}
-            </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <MetadataItem label="Dosage" value={med.dosage || 'Not recorded'} />
+            <MetadataItem label="Frequency" value={med.frequency || 'Not recorded'} />
+            <MetadataItem label="Route" value={med.route || 'Not recorded'} />
+            <MetadataItem label="Start date" value={med.startDate ? formatDate(med.startDate) : 'Not set'} />
+            <MetadataItem label="End date" value={med.endDate ? formatDate(med.endDate) : 'Not set'} />
+            <MetadataItem label="Prescriber" value={med.prescribingDoctor || 'Not recorded'} />
+          </div>
+
+          {med.scheduleNotes && (
+            <div className="mt-4 rounded-2xl border border-border bg-background/45 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Instructions / notes
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-foreground">{med.scheduleNotes}</p>
+            </div>
           )}
 
-          {(med.startDate || med.endDate) && (
-            <p className="text-xs text-muted-foreground">
-              {med.startDate && formatDate(med.startDate)}
-              {med.startDate && med.endDate && ' â†’ '}
-              {med.endDate && formatDate(med.endDate)}
-            </p>
-          )}
-
-          {med.prescribingDoctor && (
-            <p className="text-xs text-muted-foreground">Dr: {med.prescribingDoctor}</p>
-          )}
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <span>Created {formatDateTime(med.createdAt)}</span>
+            <span>Last updated {formatDateTime(med.updatedAt)}</span>
+          </div>
         </div>
 
         {canManage && (
-          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:max-w-[12rem] sm:justify-end">
             {med.status === 'active' && (
               <>
                 <ActionButton
@@ -1042,31 +1079,30 @@ function AlertCard({
 
   return (
     <article className={cn('rounded-2xl border p-4 transition-colors', rowClass)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <AlertTypeBadge type={alert.alertType} />
-        <AlertSeverityBadge severity={alert.severity} />
-        <AlertStatusBadge status={alert.status} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <AlertTypeBadge type={alert.alertType} />
+          <AlertSeverityBadge severity={alert.severity} />
+          <AlertStatusBadge status={alert.status} />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {alert.dueAt ? `Due ${formatDateTime(alert.dueAt)}` : `Logged ${formatDateTime(alert.createdAt)}`}
+        </p>
       </div>
 
-      <p className="mt-2 text-sm text-foreground leading-relaxed">{alert.message}</p>
+      <p className="mt-3 text-sm leading-relaxed text-foreground">{alert.message}</p>
 
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        {residentName && (
-          <p className="text-xs text-muted-foreground">Resident: {residentName}</p>
-        )}
-        {medicationName && (
-          <p className="text-xs text-muted-foreground">Med: {medicationName}</p>
-        )}
-        {alert.dueAt && (
-          <p className="text-xs text-muted-foreground">Due: {formatDateTime(alert.dueAt)}</p>
-        )}
-        {alert.resolvedAt && (
-          <p className="text-xs text-muted-foreground">Resolved: {formatDateTime(alert.resolvedAt)}</p>
-        )}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <MetadataItem label="Resident" value={residentName ?? 'Not linked'} />
+        <MetadataItem label="Medication" value={medicationName ?? 'Not linked'} />
+        <MetadataItem label="Logged" value={formatDateTime(alert.createdAt)} />
+        <MetadataItem label="Due" value={alert.dueAt ? formatDateTime(alert.dueAt) : 'No due time'} />
+        <MetadataItem label="Resolved" value={alert.resolvedAt ? formatDateTime(alert.resolvedAt) : 'Not resolved'} />
+        <MetadataItem label="Updated" value={formatDateTime(alert.updatedAt)} />
       </div>
 
       {canManage && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
           {isOpen && (
             <ActionButton
               label="Resolve"
