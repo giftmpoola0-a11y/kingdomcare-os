@@ -37,20 +37,21 @@ export default async function NewShiftPage({ searchParams }: NewShiftPageProps) 
 
   let activeResidents: ResidentRecord[] = []
   let loadError: string | null = null
-
-  try {
-    activeResidents = await getActiveCurrentCareHomeResidents()
-  } catch (error) {
-    console.error('Failed to load residents for new shift report:', error)
-    loadError = 'Unable to load residents. Please refresh the page.'
-  }
-
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
-    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+    ;[activeResidents, sidebarBadgeCounts] = await Promise.all([
+      getActiveCurrentCareHomeResidents(),
+      getCurrentCareHomeSidebarBadgeCounts(access, supabase),
+    ])
   } catch (error) {
-    console.error('Failed to load sidebar badge counts for new shift report:', error)
+    console.error('Failed to load residents for new shift report:', error)
+    loadError = 'Unable to load residents. Please refresh the page.'
+    try {
+      sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts(access, supabase)
+    } catch (sidebarError) {
+      console.error('Failed to load sidebar badge counts for new shift report:', sidebarError)
+    }
   }
 
   return (

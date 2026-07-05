@@ -34,18 +34,20 @@ export default async function TasksPage() {
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
-    ;[tasks, residents] = await Promise.all([
-      getCurrentCareHomeTasks(),
-      getCurrentCareHomeResidents(),
+    ;[[tasks, residents], sidebarBadgeCounts] = await Promise.all([
+      Promise.all([
+        getCurrentCareHomeTasks(),
+        getCurrentCareHomeResidents(),
+      ]),
+      getCurrentCareHomeSidebarBadgeCounts(access, supabase),
     ])
   } catch {
     loadError = 'Unable to load tasks. Please refresh the page.'
-  }
-
-  try {
-    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
-  } catch (error) {
-    console.error('Failed to load sidebar badge counts for tasks page:', error)
+    try {
+      sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts(access, supabase)
+    } catch (error) {
+      console.error('Failed to load sidebar badge counts for tasks page:', error)
+    }
   }
 
   return (

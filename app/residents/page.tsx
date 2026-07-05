@@ -32,15 +32,17 @@ export default async function ResidentsPage() {
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
-    residents = await getCurrentCareHomeResidents()
+    ;[residents, sidebarBadgeCounts] = await Promise.all([
+      getCurrentCareHomeResidents(),
+      getCurrentCareHomeSidebarBadgeCounts(access, supabase),
+    ])
   } catch {
     loadError = 'Unable to load residents. Please refresh the page.'
-  }
-
-  try {
-    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
-  } catch (error) {
-    console.error('Failed to load sidebar badge counts for residents page:', error)
+    try {
+      sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts(access, supabase)
+    } catch (error) {
+      console.error('Failed to load sidebar badge counts for residents page:', error)
+    }
   }
 
   return (

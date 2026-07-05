@@ -17,25 +17,25 @@ test.describe.serial('admin role access', () => {
       await signInUser(page, E2E_TEST_EMAIL!, E2E_TEST_PASSWORD!, '/staff/manage', diagnostics)
       await expect(page.getByRole('heading', { name: /staff management/i })).toBeVisible()
 
-      await page.goto(`${BASE}/tasks/new`, { waitUntil: 'load' })
+      await page.goto(`${BASE}/tasks/new`, { waitUntil: 'domcontentloaded' })
       await expect(page).toHaveURL(/\/tasks\/new$/)
       await expect(page.getByRole('heading', { name: /new task/i })).toBeVisible()
       await expect(page.getByLabel(/task title/i)).toBeVisible()
 
-      await page.goto(`${BASE}/incidents/new`, { waitUntil: 'load' })
+      await page.goto(`${BASE}/incidents/new`, { waitUntil: 'domcontentloaded' })
       await expect(page).toHaveURL(/\/incidents\/new$/)
       await expect(page.getByRole('heading', { name: /new incident/i })).toBeVisible()
       await expect(page.getByLabel(/incident type/i)).toBeVisible()
 
-      await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
+      await page.goto(`${BASE}/residents`, { waitUntil: 'domcontentloaded' })
       await expect(page).toHaveURL(/\/residents$/)
       await expect(page.getByRole('heading', { name: /resident profiles/i })).toBeVisible()
 
-      await page.goto(`${BASE}/shifts`, { waitUntil: 'load' })
+      await page.goto(`${BASE}/shifts`, { waitUntil: 'domcontentloaded' })
       await expect(page).toHaveURL(/\/shifts$/)
       await expect(page.getByRole('heading', { name: /^shifts$/i })).toBeVisible()
 
-      await page.goto(`${BASE}/tasks`, { waitUntil: 'load' })
+      await page.goto(`${BASE}/tasks`, { waitUntil: 'domcontentloaded' })
       await expect(page).toHaveURL(/\/tasks$/)
       await expect(page.getByRole('heading', { name: /daily tasks/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /create task/i }).first()).toBeVisible()
@@ -47,3 +47,4 @@ test.describe.serial('admin role access', () => {
     }
   })
 })
+

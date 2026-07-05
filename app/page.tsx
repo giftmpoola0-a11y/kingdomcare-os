@@ -1,49 +1,56 @@
+import { performance } from 'node:perf_hooks'
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import type { DashboardCareAttentionItem } from '@/components/kingdomos-v0/dashboard/care-attention'
 import type { DashboardCareTeamMember } from '@/components/kingdomos-v0/dashboard/staff-on-duty'
 import type { DashboardRecentActivityItem } from '@/components/kingdomos-v0/dashboard/recent-activity'
 import type { DashboardOperationalQueueItem } from '@/components/kingdomos-v0/dashboard/today-glance'
-import { getCurrentUserAccess, normalizeMembershipRole } from '@/app/lib/supabase/access'
+import { getCurrentUserAccess, normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
+import type { Database, Tables } from '@/app/lib/supabase/database.types'
+import { mapIncidentRowToRecord, type IncidentRecord } from '@/app/lib/supabase/incidents'
 import {
-  getCurrentCareHomeIncidents,
-  getOpenCurrentCareHomeIncidents,
-  type IncidentRecord,
-} from '@/app/lib/supabase/incidents'
-import {
-  getCurrentCareHomeMedicationAlerts,
-  getCurrentCareHomeMedications,
-  getOpenCurrentCareHomeMedicationAlerts,
+  mapMedicationAlertRowToRecord,
+  mapMedicationRowToRecord,
   type MedicationAlertRecord,
   type MedicationRecord,
 } from '@/app/lib/supabase/medications'
-import {
-  getActiveCurrentCareHomeResidents,
-  getCurrentCareHomeResidents,
-  getRecentCurrentCareHomeResidents,
-  type ResidentActivityRecord,
-  type ResidentRecord,
-} from '@/app/lib/supabase/residents'
+import type { ResidentActivityRecord } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   getCurrentCareHomeSidebarBadgeCounts,
 } from '@/app/lib/supabase/sidebar-badge-counts'
 import {
-  getCurrentCareHomeShiftReports,
+  mapShiftReportRowToRecord,
   type ShiftReportRecord,
 } from '@/app/lib/supabase/shiftReports'
-import { getCurrentCareHomeTasks, getOpenCurrentCareHomeTasks, type TaskRecord } from '@/app/lib/supabase/tasks'
+import { mapTaskRowToRecord, type TaskRecord } from '@/app/lib/supabase/tasks'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-v0-sans',
   subsets: ['latin'],
 })
 
+type TypedSupabaseClient = SupabaseClient<Database>
+type ResidentDirectoryEntry = Pick<Tables<'residents'>, 'id' | 'full_name'>
+type ResidentActivityRow = Pick<Tables<'residents'>, 'id' | 'full_name' | 'status' | 'created_at' | 'updated_at'>
+type DashboardTimingEntry = {
+  label: string
+  ms: number
+}
+
+const DASHBOARD_PROFILE_ENABLED = process.env.KC_PROFILE_DASHBOARD === '1'
+
 export default async function DashboardPage() {
-  const supabase = await getSupabaseServerClient()
-  const access = await getCurrentUserAccess(supabase)
+  const dashboardTimings: DashboardTimingEntry[] = []
+  const supabase = (await measureDashboardStep(dashboardTimings, 'getSupabaseServerClient', () =>
+    getSupabaseServerClient()
+  )) as TypedSupabaseClient
+  const access = await measureDashboardStep(dashboardTimings, 'getCurrentUserAccess', () =>
+    getCurrentUserAccess(supabase)
+  )
 
   if (!access.isSignedIn) {
     redirect('/auth/sign-in')
@@ -59,101 +66,364 @@ export default async function DashboardPage() {
     redirect('/onboarding')
   }
 
-  let activeResidentsCount = 0
-  let openTasksCount = 0
-  let overdueTasksCount = 0
-  let openIncidentsCount = 0
-  let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
-  let recentActivityItems: DashboardRecentActivityItem[] = []
-  let careAttentionItems: DashboardCareAttentionItem[] = []
-  let operationalQueueItems: DashboardOperationalQueueItem[] = []
-  let careTeamMembers: DashboardCareTeamMember[] = []
-  let recentShiftReports: ShiftReportRecord[] = []
+  const nowIso = new Date().toISOString()
 
-  try {
-    const activeResidents = await getActiveCurrentCareHomeResidents()
-    activeResidentsCount = activeResidents.length
-  } catch (error) {
-    console.error('Failed to load active residents count for dashboard:', error)
-  }
+  const sidebarBadgeCountsPromise = loadDashboardData(
+    dashboardTimings,
+    'sidebarBadgeCounts',
+    EMPTY_SIDEBAR_BADGE_COUNTS,
+    () => getCurrentCareHomeSidebarBadgeCounts(access, supabase)
+  )
 
-  try {
-    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
-    openTasksCount = sidebarBadgeCounts.openTasksCount
-  } catch (error) {
-    console.error('Failed to load sidebar badge counts for dashboard:', error)
-  }
+  const residentDirectoryPromise = loadDashboardData(
+    dashboardTimings,
+    'residentDirectory',
+    [] as ResidentDirectoryEntry[],
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select('id, full_name')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('full_name', { ascending: true })
 
-  try {
-    const { data: careTeamData, error } = await supabase.rpc('get_care_home_staff', {
-      p_care_home_id: membership.careHomeId,
-    })
+      if (error) {
+        throw new Error(error.message)
+      }
 
-    if (error) {
-      throw new Error(error.message)
+      return data ?? []
     }
+  )
 
-    careTeamMembers = Array.isArray(careTeamData)
-      ? careTeamData
-          .map((member) => normalizeDashboardCareTeamMember(member))
-          .filter((member): member is DashboardCareTeamMember => member !== null)
-      : []
-  } catch (error) {
-    console.error('Failed to load care team members for dashboard:', error)
-  }
+  const recentResidentsPromise = loadDashboardData(
+    dashboardTimings,
+    'recentResidents',
+    [] as ResidentActivityRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select('id, full_name, status, created_at, updated_at')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-  try {
-    const [residents, recentResidents, tasks, incidents, shiftReports, medications, medicationAlerts] = await Promise.all([
-      getCurrentCareHomeResidents(),
-      getRecentCurrentCareHomeResidents(5),
-      getCurrentCareHomeTasks(),
-      getCurrentCareHomeIncidents(),
-      getCurrentCareHomeShiftReports(4),
-      getCurrentCareHomeMedications(),
-      getCurrentCareHomeMedicationAlerts(),
-    ])
+      if (error) {
+        throw new Error(error.message)
+      }
 
-    recentShiftReports = shiftReports
-    recentActivityItems = buildRecentActivityItems({
-      residents,
-      recentResidents,
-      tasks,
-      incidents,
-      shiftReports,
-      medications,
-      medicationAlerts,
-    })
-  } catch (error) {
-    console.error('Failed to load recent activity for dashboard:', error)
-  }
+      return (data ?? []).map((row) => mapRecentResidentRowToActivity(row as ResidentActivityRow))
+    }
+  )
 
-  try {
-    const [residents, openTasks, openIncidents, openMedicationAlerts] = await Promise.all([
-      getCurrentCareHomeResidents(),
-      getOpenCurrentCareHomeTasks(),
-      getOpenCurrentCareHomeIncidents(),
-      getOpenCurrentCareHomeMedicationAlerts(),
-    ])
+  const recentTasksPromise = loadDashboardData(
+    dashboardTimings,
+    'recentTasks',
+    [] as TaskRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-    openTasksCount = openTasks.length
-    overdueTasksCount = countOverdueTasks(openTasks)
-    openIncidentsCount = openIncidents.length
+      if (error) {
+        throw new Error(error.message)
+      }
 
-    careAttentionItems = buildCareAttentionItems({
-      residents,
-      openTasks,
-      openIncidents,
-      openMedicationAlerts,
-    })
+      return (data ?? []).map(mapTaskRowToRecord)
+    }
+  )
 
-    operationalQueueItems = buildOperationalQueueItems({
-      residents,
-      openTasks,
-      openIncidents,
-      openMedicationAlerts,
-    })
-  } catch (error) {
-    console.error('Failed to load operational queue for dashboard:', error)
+  const openTasksPromise = loadDashboardData(
+    dashboardTimings,
+    'openTasks',
+    [] as TaskRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .in('status', ['open', 'in_progress'])
+        .is('deleted_at', null)
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapTaskRowToRecord)
+    }
+  )
+
+  const overdueTasksCountPromise = loadDashboardData(
+    dashboardTimings,
+    'overdueTasksCount',
+    0,
+    async () => {
+      const { count, error } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('care_home_id', membership.careHomeId)
+        .in('status', ['open', 'in_progress'])
+        .is('deleted_at', null)
+        .lt('due_at', nowIso)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return count ?? 0
+    }
+  )
+
+  const recentIncidentsPromise = loadDashboardData(
+    dashboardTimings,
+    'recentIncidents',
+    [] as IncidentRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapIncidentRowToRecord)
+    }
+  )
+
+  const openIncidentsPromise = loadDashboardData(
+    dashboardTimings,
+    'openIncidents',
+    [] as IncidentRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .in('status', ['open', 'reviewing'])
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapIncidentRowToRecord)
+    }
+  )
+
+  const openIncidentsCountPromise = loadDashboardData(
+    dashboardTimings,
+    'openIncidentsCount',
+    0,
+    async () => {
+      const { count, error } = await supabase
+        .from('incidents')
+        .select('id', { count: 'exact', head: true })
+        .eq('care_home_id', membership.careHomeId)
+        .in('status', ['open', 'reviewing'])
+        .is('deleted_at', null)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return count ?? 0
+    }
+  )
+
+  const recentShiftReportsPromise = loadDashboardData(
+    dashboardTimings,
+    'recentShiftReports',
+    [] as ShiftReportRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('shift_reports')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('shift_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(4)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapShiftReportRowToRecord)
+    }
+  )
+
+  const recentMedicationsPromise = loadDashboardData(
+    dashboardTimings,
+    'recentMedications',
+    [] as MedicationRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapMedicationRowToRecord)
+    }
+  )
+
+  const recentMedicationAlertsPromise = loadDashboardData(
+    dashboardTimings,
+    'recentMedicationAlerts',
+    [] as MedicationAlertRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('medication_alerts')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapMedicationAlertRowToRecord)
+    }
+  )
+
+  const openMedicationAlertsPromise = loadDashboardData(
+    dashboardTimings,
+    'openMedicationAlerts',
+    [] as MedicationAlertRecord[],
+    async () => {
+      const { data, error } = await supabase
+        .from('medication_alerts')
+        .select('*')
+        .eq('care_home_id', membership.careHomeId)
+        .in('status', ['open', 'reviewing'])
+        .is('deleted_at', null)
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(25)
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []).map(mapMedicationAlertRowToRecord)
+    }
+  )
+
+  const careTeamMembersPromise =
+    access.role === 'admin' || access.role === 'nurse'
+      ? loadDashboardData(
+          dashboardTimings,
+          'careTeamMembers',
+          [] as DashboardCareTeamMember[],
+          async () => {
+            const { data, error } = await supabase.rpc('get_care_home_staff', {
+              p_care_home_id: membership.careHomeId,
+            })
+
+            if (error) {
+              throw new Error(error.message)
+            }
+
+            return Array.isArray(data)
+              ? data
+                  .map((member) => normalizeDashboardCareTeamMember(member))
+                  .filter((member): member is DashboardCareTeamMember => member !== null)
+              : []
+          }
+        )
+      : Promise.resolve([] as DashboardCareTeamMember[])
+
+  const [
+    sidebarBadgeCounts,
+    residentDirectory,
+    recentResidents,
+    recentTasks,
+    openTasks,
+    overdueTasksCount,
+    recentIncidents,
+    openIncidents,
+    openIncidentsCount,
+    recentShiftReports,
+    recentMedications,
+    recentMedicationAlerts,
+    openMedicationAlerts,
+    careTeamMembers,
+  ] = await Promise.all([
+    sidebarBadgeCountsPromise,
+    residentDirectoryPromise,
+    recentResidentsPromise,
+    recentTasksPromise,
+    openTasksPromise,
+    overdueTasksCountPromise,
+    recentIncidentsPromise,
+    openIncidentsPromise,
+    openIncidentsCountPromise,
+    recentShiftReportsPromise,
+    recentMedicationsPromise,
+    recentMedicationAlertsPromise,
+    openMedicationAlertsPromise,
+    careTeamMembersPromise,
+  ])
+
+  const residentNameById = new Map(residentDirectory.map((resident) => [resident.id, resident.full_name]))
+  const recentActivityItems = buildRecentActivityItems({
+    residentNameById,
+    recentResidents,
+    tasks: recentTasks,
+    incidents: recentIncidents,
+    shiftReports: recentShiftReports,
+    medications: recentMedications,
+    medicationAlerts: recentMedicationAlerts,
+  })
+  const careAttentionItems = buildCareAttentionItems({
+    residentNameById,
+    openTasks,
+    openIncidents,
+    openMedicationAlerts,
+  })
+  const operationalQueueItems = buildOperationalQueueItems({
+    residentNameById,
+    openTasks,
+    openIncidents,
+    openMedicationAlerts,
+  })
+
+  if (DASHBOARD_PROFILE_ENABLED) {
+    console.log(
+      `[dashboard-timing] ${JSON.stringify(
+        dashboardTimings
+          .slice()
+          .sort((left, right) => right.ms - left.ms)
+          .map((entry) => ({ ...entry, ms: Number(entry.ms.toFixed(1)) }))
+      )}`
+    )
   }
 
   return (
@@ -164,8 +434,8 @@ export default async function DashboardPage() {
           role={access.role}
           userDisplayName={access.profile?.fullName || access.profile?.email || access.user?.email || ''}
           careHomeName={access.careHomeName}
-          activeResidentsCount={activeResidentsCount}
-          openTasksCount={openTasksCount}
+          activeResidentsCount={sidebarBadgeCounts.activeResidentsCount}
+          openTasksCount={sidebarBadgeCounts.openTasksCount}
           overdueTasksCount={overdueTasksCount}
           openIncidentsCount={openIncidentsCount}
           recentActivityItems={recentActivityItems}
@@ -178,6 +448,49 @@ export default async function DashboardPage() {
       </div>
     </div>
   )
+}
+
+async function measureDashboardStep<T>(
+  timings: DashboardTimingEntry[],
+  label: string,
+  task: () => Promise<T>
+): Promise<T> {
+  const start = performance.now()
+
+  try {
+    return await task()
+  } finally {
+    if (DASHBOARD_PROFILE_ENABLED) {
+      timings.push({
+        label,
+        ms: performance.now() - start,
+      })
+    }
+  }
+}
+
+async function loadDashboardData<T>(
+  timings: DashboardTimingEntry[],
+  label: string,
+  fallback: T,
+  task: () => Promise<T>
+): Promise<T> {
+  try {
+    return await measureDashboardStep(timings, label, task)
+  } catch (error) {
+    console.error(`Failed to load ${label} for dashboard:`, error)
+    return fallback
+  }
+}
+
+function mapRecentResidentRowToActivity(row: ResidentActivityRow): ResidentActivityRecord {
+  return {
+    id: row.id,
+    name: row.full_name,
+    status: row.status === 'archived' ? 'archived' : 'active',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMember | null {
@@ -205,7 +518,7 @@ function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMemb
 }
 
 function buildRecentActivityItems({
-  residents,
+  residentNameById,
   recentResidents,
   tasks,
   incidents,
@@ -213,7 +526,7 @@ function buildRecentActivityItems({
   medications,
   medicationAlerts,
 }: {
-  residents: ResidentRecord[]
+  residentNameById: Map<string, string>
   recentResidents: ResidentActivityRecord[]
   tasks: TaskRecord[]
   incidents: IncidentRecord[]
@@ -221,8 +534,6 @@ function buildRecentActivityItems({
   medications: MedicationRecord[]
   medicationAlerts: MedicationAlertRecord[]
 }): DashboardRecentActivityItem[] {
-  const residentNameById = new Map(residents.map((resident) => [resident.id, resident.name]))
-
   const residentItems: DashboardRecentActivityItem[] = recentResidents.map((resident) => ({
     id: `resident-${resident.id}`,
     type: 'resident',
@@ -361,18 +672,16 @@ function buildRecentActivityItems({
 }
 
 function buildCareAttentionItems({
-  residents,
+  residentNameById,
   openTasks,
   openIncidents,
   openMedicationAlerts,
 }: {
-  residents: ResidentRecord[]
+  residentNameById: Map<string, string>
   openTasks: TaskRecord[]
   openIncidents: IncidentRecord[]
   openMedicationAlerts: MedicationAlertRecord[]
 }): DashboardCareAttentionItem[] {
-  const residentNameById = new Map(residents.map((resident) => [resident.id, resident.name]))
-
   const taskItems: DashboardCareAttentionItem[] = openTasks
     .filter((task) => task.priority === 'urgent' || task.priority === 'high')
     .map((task) => ({
@@ -440,17 +749,16 @@ function buildCareAttentionItems({
 }
 
 function buildOperationalQueueItems({
-  residents,
+  residentNameById,
   openTasks,
   openIncidents,
   openMedicationAlerts,
 }: {
-  residents: ResidentRecord[]
+  residentNameById: Map<string, string>
   openTasks: TaskRecord[]
   openIncidents: IncidentRecord[]
   openMedicationAlerts: MedicationAlertRecord[]
 }): DashboardOperationalQueueItem[] {
-  const residentNameById = new Map(residents.map((resident) => [resident.id, resident.name]))
   const now = new Date()
   const endOfToday = new Date(now)
   endOfToday.setHours(23, 59, 59, 999)
@@ -611,7 +919,7 @@ function careAttentionSeverityRank(severity: DashboardCareAttentionItem['severit
   }
 }
 
-function dashboardRoleLabel(role: string | null | undefined) {
+function dashboardRoleLabel(role: MembershipRole | null | undefined) {
   switch (role) {
     case 'admin':
       return 'Admin'
@@ -622,18 +930,6 @@ function dashboardRoleLabel(role: string | null | undefined) {
     default:
       return 'Care Team'
   }
-}
-
-function countOverdueTasks(tasks: TaskRecord[]) {
-  const now = Date.now()
-  return tasks.filter((task) => {
-    if (!task.dueAt) {
-      return false
-    }
-
-    const dueTime = Date.parse(task.dueAt)
-    return !Number.isNaN(dueTime) && dueTime < now
-  }).length
 }
 
 function truncateText(value: string, length: number) {

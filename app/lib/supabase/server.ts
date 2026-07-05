@@ -1,8 +1,9 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export async function getSupabaseServerClient(): Promise<SupabaseClient> {
+export const getSupabaseServerClient = cache(async (): Promise<SupabaseClient> => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
@@ -30,4 +31,4 @@ export async function getSupabaseServerClient(): Promise<SupabaseClient> {
       },
     },
   })
-}
+})

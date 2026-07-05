@@ -32,20 +32,21 @@ export default async function ShiftsPage() {
 
   let shiftReports: ShiftReportRecord[] = []
   let loadError: string | null = null
-
-  try {
-    shiftReports = await getCurrentCareHomeShiftReports()
-  } catch (error) {
-    console.error('Failed to load shift reports:', error)
-    loadError = 'Unable to load shift reports. Please refresh the page.'
-  }
-
   let sidebarBadgeCounts = EMPTY_SIDEBAR_BADGE_COUNTS
 
   try {
-    sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+    ;[shiftReports, sidebarBadgeCounts] = await Promise.all([
+      getCurrentCareHomeShiftReports(),
+      getCurrentCareHomeSidebarBadgeCounts(access, supabase),
+    ])
   } catch (error) {
-    console.error('Failed to load sidebar badge counts for shifts page:', error)
+    console.error('Failed to load shift reports:', error)
+    loadError = 'Unable to load shift reports. Please refresh the page.'
+    try {
+      sidebarBadgeCounts = await getCurrentCareHomeSidebarBadgeCounts(access, supabase)
+    } catch (sidebarError) {
+      console.error('Failed to load sidebar badge counts for shifts page:', sidebarError)
+    }
   }
 
   return (

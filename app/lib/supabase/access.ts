@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 
 export type MembershipRole = 'admin' | 'nurse' | 'caregiver'
@@ -25,10 +26,10 @@ export interface CurrentUserAccess {
   hasCareHome: boolean
 }
 
-export async function getCurrentUserAccess(
+export const getCurrentUserAccess = cache(async (
   supabase: SupabaseClient,
   options?: { user?: User | null }
-): Promise<CurrentUserAccess> {
+): Promise<CurrentUserAccess> => {
   const user =
     options && 'user' in options
       ? options.user ?? null
@@ -95,7 +96,7 @@ export async function getCurrentUserAccess(
     isSignedIn: true,
     hasCareHome: Boolean(membership?.care_home_id),
   }
-}
+})
 
 export function normalizeMembershipRole(role: string | null | undefined): MembershipRole | null {
   return role === 'admin' || role === 'nurse' || role === 'caregiver' ? role : null
