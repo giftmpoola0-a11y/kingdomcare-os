@@ -1,6 +1,6 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { attachDiagnostics, BASE, signInUser } from './helpers/auth'
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3100'
 const E2E_TEST_EMAIL = process.env.E2E_TEST_EMAIL
 const E2E_TEST_PASSWORD = process.env.E2E_TEST_PASSWORD
 
@@ -20,6 +20,7 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
     const residentNote = `Supabase resident note ${token}`
     const supportNeed = 'Medication reminders'
     const diagnostics: string[] = []
+    let residentCreated = false
     const adminContext = await browser.newContext()
     const adminPage = await adminContext.newPage()
 
@@ -38,6 +39,7 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       await adminPage.locator('#residentNotes').fill(residentNote)
       await adminPage.getByRole('button', { name: /^save resident$/i }).click()
       await waitForResidentCreateOutcome(adminPage, residentName, diagnostics)
+      residentCreated = true
       await recordStep(adminPage, diagnostics, 'after resident create submit')
       await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
       await recordStep(adminPage, diagnostics, 'after residents reload')
@@ -60,15 +62,8 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
 
       await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
       await recordStep(adminPage, diagnostics, 'before cleanup')
-      const residentCardForCleanup = adminPage.locator('article').filter({ hasText: residentName }).first()
-      await expect(residentCardForCleanup).toBeVisible()
-      adminPage.once('dialog', (dialog) => dialog.accept())
-      await residentCardForCleanup.getByRole('button', { name: /^delete$/i }).click()
-      await waitForResidentDeleteOutcome(adminPage, residentName, diagnostics)
-      await recordStep(adminPage, diagnostics, 'after cleanup click')
-      await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
-      await recordStep(adminPage, diagnostics, 'after cleanup reload')
-      await expect(residentCardForCleanup).toHaveCount(0)
+      await cleanupResidentByName(adminPage, residentName, diagnostics)
+      residentCreated = false
       await recordStep(adminPage, diagnostics, 'after cleanup complete')
     } catch (error) {
       const currentUrl = adminPage.url()
@@ -77,66 +72,25 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       diagnostics.push(`unexpected sign-in visible: ${currentUrl.includes('/auth/sign-in')}`)
       diagnostics.push(`body excerpt: ${bodyText.slice(0, 1200).replace(/\s+/g, ' ').trim()}`)
       console.log('Resident flow diagnostics:\n' + diagnostics.join('\n'))
-      await attachDiagnostics(testInfo, diagnostics)
+      await attachDiagnostics(testInfo, 'resident-flow-diagnostics', diagnostics)
       throw error
     } finally {
+      if (residentCreated) {
+        await cleanupResidentByName(adminPage, residentName, diagnostics).catch((cleanupError) => {
+          diagnostics.push(
+            `cleanup error: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+          )
+        })
+      }
+
       if (diagnostics.length > 0) {
         console.log('Resident flow diagnostics (final):\n' + diagnostics.join('\n'))
       }
-      await attachDiagnostics(testInfo, diagnostics)
+      await attachDiagnostics(testInfo, 'resident-flow-diagnostics', diagnostics)
       await adminContext.close().catch(() => {})
     }
   })
 })
-
-async function signInUser(
-  page: Page,
-  email: string,
-  password: string,
-  nextPath = '/',
-  diagnostics: string[] = []
-) {
-  await page.goto(`${BASE}/auth/sign-in?next=${encodeURIComponent(nextPath)}`, { waitUntil: 'load' })
-  await page.locator('#email').waitFor({ state: 'visible', timeout: 20000 })
-  await page.locator('#email').fill(email)
-  await page.locator('#password').fill(password)
-  await page.getByRole('button', { name: /sign in/i }).click()
-
-  const outcome = await Promise.race([
-    page.waitForURL(new RegExp(nextPath === '/' ? '/$' : nextPath.replace('/', '\\/')), {
-      timeout: 20000,
-    }).then(() => 'expected'),
-    page.waitForURL(/\/onboarding(?:\/)?$/, { timeout: 20000 }).then(() => 'onboarding'),
-    page.waitForURL(/\/$/, { timeout: 20000 }).then(() => 'home'),
-    page
-      .locator('p.text-red-700')
-      .first()
-      .waitFor({ state: 'visible', timeout: 20000 })
-      .then(() => 'error'),
-  ]).catch(() => 'timeout')
-
-  if (outcome === 'expected') {
-    return
-  }
-
-  const currentUrl = page.url()
-  const visibleError =
-    outcome === 'error'
-      ? (await page.locator('p.text-red-700').first().textContent())?.trim() ?? ''
-      : ''
-  diagnostics.push(`sign-in outcome: ${outcome}`)
-  diagnostics.push(`sign-in current url: ${currentUrl}`)
-  diagnostics.push(`sign-in visible error: ${visibleError || 'none'}`)
-
-  throw new Error(
-    [
-      `Sign-in did not reach ${nextPath}.`,
-      `Outcome: ${outcome}.`,
-      `Current URL: ${currentUrl}.`,
-      visibleError ? `Visible error: ${visibleError}.` : 'Visible error: none.',
-    ].join(' ')
-  )
-}
 
 async function waitForResidentCreateOutcome(
   page: Page,
@@ -232,7 +186,7 @@ async function recordStep(page: Page, diagnostics: string[], label: string) {
   diagnostics.push(`${label} unexpected sign-in: ${onSignIn}`)
 
   if (onSignIn) {
-    const visibleError = await page.locator('p.text-red-700').first().textContent().catch(() => '')
+    const visibleError = await page.locator('main p').filter({ hasText: /unable to sign in|unable to reach|invalid|required/i }).first().textContent().catch(() => '')
     throw new Error(
       [
         `Unexpected redirect to sign-in during ${label}.`,
@@ -243,13 +197,36 @@ async function recordStep(page: Page, diagnostics: string[], label: string) {
   }
 }
 
-async function attachDiagnostics(testInfo: TestInfo, diagnostics: string[]) {
-  if (diagnostics.length === 0) {
-    return
+async function cleanupResidentByName(page: Page, residentName: string, diagnostics: string[]) {
+  diagnostics.push(`cleanup target resident: ${residentName}`)
+
+  if (page.url().includes('/auth/sign-in')) {
+    diagnostics.push('cleanup re-authenticating admin user')
+    await signInUser(page, E2E_TEST_EMAIL!, E2E_TEST_PASSWORD!, '/residents', diagnostics)
   }
 
-  await testInfo.attach('resident-flow-diagnostics', {
-    body: diagnostics.join('\n'),
-    contentType: 'text/plain',
-  })
+  await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const residentCard = page.locator('article').filter({ hasText: residentName }).first()
+    const residentCount = await residentCard.count().catch(() => 0)
+    diagnostics.push(`cleanup attempt ${attempt} visible count: ${residentCount}`)
+
+    if (residentCount === 0) {
+      diagnostics.push(`cleanup resident removed by attempt ${attempt}`)
+      return
+    }
+
+    page.once('dialog', (dialog) => dialog.accept())
+    await residentCard.getByRole('button', { name: /^delete$/i }).click()
+    await waitForResidentDeleteOutcome(page, residentName, diagnostics)
+    await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
+  }
+
+  const remainingCount = await page.locator('article').filter({ hasText: residentName }).count().catch(() => 0)
+  diagnostics.push(`cleanup remaining count after retries: ${remainingCount}`)
+
+  if (remainingCount > 0) {
+    throw new Error(`Cleanup could not remove resident ${residentName}.`)
+  }
 }
