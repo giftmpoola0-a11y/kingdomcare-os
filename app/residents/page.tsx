@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
 import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
@@ -46,6 +47,7 @@ export default async function ResidentsPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <ResidentsClient
+          {...getAppChromeProps(access)}
           initialResidents={residents}
           isAdmin={access.role === 'admin'}
           loadError={loadError}

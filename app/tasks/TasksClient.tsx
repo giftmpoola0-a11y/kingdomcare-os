@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
@@ -16,7 +17,7 @@ const FILTER_OPTIONS = ['Today', 'Pending', 'Completed', 'All'] as const
 
 type TaskFilter = (typeof FILTER_OPTIONS)[number]
 
-export interface TasksClientProps {
+export interface TasksClientProps extends AppChromeProps {
   initialTasks: TaskRecord[]
   activeResidents: ResidentRecord[]
   canManageTasks: boolean
@@ -25,6 +26,9 @@ export interface TasksClientProps {
 }
 
 export default function TasksClient({
+  role,
+  userDisplayName,
+  careHomeName,
   initialTasks,
   activeResidents,
   canManageTasks,
@@ -115,10 +119,16 @@ export default function TasksClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

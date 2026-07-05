@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { ArrowLeft, FileText, Pill, UserRound, Workflow } from 'lucide-react'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { ResidentRecord, ResidentSex } from '@/app/lib/supabase/residents'
 import StatusBadge from '@/app/components/ui/StatusBadge'
@@ -17,13 +18,16 @@ const SEX_LABELS: Record<ResidentSex, string> = {
   other: 'Other',
 }
 
-export interface ResidentDetailClientProps {
+export interface ResidentDetailClientProps extends AppChromeProps {
   resident: ResidentRecord | null
   canManage: boolean
   sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function ResidentDetailClient({
+  role,
+  userDisplayName,
+  careHomeName,
   resident,
   canManage,
   sidebarBadgeCounts,
@@ -36,10 +40,12 @@ export default function ResidentDetailClient({
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           {resident ? (

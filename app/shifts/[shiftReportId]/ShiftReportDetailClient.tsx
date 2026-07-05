@@ -3,17 +3,21 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { ArrowLeft, ClipboardList, FileClock, NotebookPen } from 'lucide-react'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 
-export interface ShiftReportDetailClientProps {
+export interface ShiftReportDetailClientProps extends AppChromeProps {
   shiftReport: ShiftReportRecord
   sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function ShiftReportDetailClient({
+  role,
+  userDisplayName,
+  careHomeName,
   shiftReport,
   sidebarBadgeCounts,
 }: ShiftReportDetailClientProps) {
@@ -21,10 +25,16 @@ export default function ShiftReportDetailClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

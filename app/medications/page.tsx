@@ -1,6 +1,7 @@
-﻿import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
 import {
@@ -58,6 +59,7 @@ export default async function MedicationsPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <MedicationsClient
+          {...getAppChromeProps(access)}
           initialMedications={medications}
           initialAlerts={alerts}
           activeResidents={residents.filter((r) => r.status !== 'archived')}

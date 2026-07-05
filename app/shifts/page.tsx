@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import {
   getCurrentCareHomeShiftReports,
   type ShiftReportRecord,
@@ -51,6 +52,7 @@ export default async function ShiftsPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <ShiftsClient
+          {...getAppChromeProps(access)}
           shiftReports={shiftReports}
           sidebarBadgeCounts={sidebarBadgeCounts}
           loadError={loadError}

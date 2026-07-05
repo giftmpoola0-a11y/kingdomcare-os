@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { CheckCircle2, ListChecks, Pill, ShieldAlert, Users, Users2 } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import type {
   MedicationAlertRecord,
@@ -25,7 +26,7 @@ const DATE_RANGES: { value: DateRangeValue; label: string }[] = [
 
 const INCIDENT_LIST_LIMIT = 10
 
-export interface ReportsClientProps {
+export interface ReportsClientProps extends AppChromeProps {
   residents: ResidentRecord[]
   activeResidentsCount: number
   tasks: TaskRecord[]
@@ -37,6 +38,9 @@ export interface ReportsClientProps {
 }
 
 export default function ReportsClient({
+  role,
+  userDisplayName,
+  careHomeName,
   residents,
   activeResidentsCount,
   tasks,
@@ -89,10 +93,16 @@ export default function ReportsClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

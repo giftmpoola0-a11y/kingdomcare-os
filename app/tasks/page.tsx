@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import {
@@ -51,6 +52,7 @@ export default async function TasksPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <TasksClient
+          {...getAppChromeProps(access)}
           initialTasks={tasks}
           activeResidents={residents.filter((resident) => resident.status !== 'archived')}
           canManageTasks={access.role === 'admin' || access.role === 'nurse'}

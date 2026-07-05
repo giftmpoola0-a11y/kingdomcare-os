@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
@@ -71,7 +72,7 @@ const INPUT_CLASS =
 const TEXTAREA_CLASS =
   'w-full rounded-xl border border-border bg-background/70 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-rose-400/50 focus:outline-none focus:ring-2 focus:ring-rose-400/15 resize-none'
 
-export interface IncidentsClientProps {
+export interface IncidentsClientProps extends AppChromeProps {
   initialIncidents: IncidentRecord[]
   activeResidents: ResidentRecord[]
   canManageIncidents: boolean
@@ -80,6 +81,9 @@ export interface IncidentsClientProps {
 }
 
 export default function IncidentsClient({
+  role,
+  userDisplayName,
+  careHomeName,
   initialIncidents,
   activeResidents,
   canManageIncidents,
@@ -240,10 +244,12 @@ export default function IncidentsClient({
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

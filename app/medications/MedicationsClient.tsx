@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { cn } from '@/lib/utils'
 import type {
   MedicationRecord,
@@ -38,7 +39,6 @@ import {
   deleteMedicationAlertAction,
 } from './actions'
 
-// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ROUTES = ['Oral', 'Topical', 'Injection', 'Inhaled', 'Patch', 'Sublingual', 'Other']
 
@@ -70,9 +70,8 @@ const INPUT_CLASS =
 const TEXTAREA_CLASS =
   'w-full rounded-xl border border-border bg-background/70 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-emerald-400/50 focus:outline-none focus:ring-2 focus:ring-emerald-400/15 resize-none'
 
-// â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export interface MedicationsClientProps {
+export interface MedicationsClientProps extends AppChromeProps {
   initialMedications: MedicationRecord[]
   initialAlerts: MedicationAlertRecord[]
   activeResidents: ResidentRecord[]
@@ -81,9 +80,11 @@ export interface MedicationsClientProps {
   sidebarBadgeCounts: SidebarBadgeCounts
 }
 
-// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function MedicationsClient({
+  role,
+  userDisplayName,
+  careHomeName,
   initialMedications,
   initialAlerts,
   activeResidents,
@@ -175,7 +176,6 @@ export default function MedicationsClient({
       alertForm.severity !== 'medium',
   )
 
-  // â”€â”€ Action runner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function run(
     actionFn: () => Promise<{ success: boolean; error?: string }>,
@@ -193,7 +193,6 @@ export default function MedicationsClient({
     })
   }
 
-  // â”€â”€ Medication form handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function handleMedChange(field: keyof typeof medForm, value: string) {
     setMedForm((prev) => ({ ...prev, [field]: value }))
@@ -240,7 +239,6 @@ export default function MedicationsClient({
     )
   }
 
-  // â”€â”€ Alert form handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function handleAlertChange(field: keyof typeof alertForm, value: string) {
     setAlertForm((prev) => ({ ...prev, [field]: value }))
@@ -284,7 +282,6 @@ export default function MedicationsClient({
     )
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -292,14 +289,15 @@ export default function MedicationsClient({
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
 
-          {/* â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -324,7 +322,6 @@ export default function MedicationsClient({
             </div>
           </section>
 
-          {/* â”€â”€ Error banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {(loadError || actionError) && (
             <p
               role="alert"
@@ -341,10 +338,8 @@ export default function MedicationsClient({
             </section>
           )}
 
-          {/* â”€â”€ Main grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_400px]">
 
-            {/* â”€â”€ Left: Medications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="flex flex-col gap-6">
 
               {/* Add medication form */}
@@ -592,7 +587,6 @@ export default function MedicationsClient({
               </section>
             </div>
 
-            {/* â”€â”€ Right: Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div className="flex flex-col gap-6">
 
               {/* Create alert form */}
@@ -802,7 +796,6 @@ export default function MedicationsClient({
   )
 }
 
-// â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SummaryCard({
   label,
@@ -887,7 +880,6 @@ function MetadataItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-// â”€â”€ Medication card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface MedicationCardProps {
   med: MedicationRecord
@@ -1043,7 +1035,6 @@ function MedStatusBadge({ status }: { status: MedicationRecord['status'] }) {
   )
 }
 
-// â”€â”€ Alert card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AlertCardProps {
   alert: MedicationAlertRecord
@@ -1192,7 +1183,6 @@ function AlertStatusBadge({ status }: { status: MedicationAlertRecord['status'] 
   )
 }
 
-// â”€â”€ Action button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ActionButton({
   label,
@@ -1231,7 +1221,6 @@ function ActionButton({
   )
 }
 
-// â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function formatDate(value: string) {
   const d = new Date(value)

@@ -1,6 +1,7 @@
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import {
   getCurrentCareHomeIncidentById,
   type IncidentRecord,
@@ -68,6 +69,7 @@ export default async function IncidentDetailPage(props: PageProps<'/incidents/[i
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <IncidentDetailClient
+          {...getAppChromeProps(access)}
           incident={incident}
           residentName={residentName}
           sidebarBadgeCounts={sidebarBadgeCounts}

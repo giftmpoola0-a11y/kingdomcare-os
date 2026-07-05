@@ -15,19 +15,23 @@ import {
   ShieldAlert,
   UserRound,
 } from 'lucide-react'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { cn } from '@/lib/utils'
 
-export interface IncidentDetailClientProps {
+export interface IncidentDetailClientProps extends AppChromeProps {
   incident: IncidentRecord
   residentName: string
   sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function IncidentDetailClient({
+  role,
+  userDisplayName,
+  careHomeName,
   incident,
   residentName,
   sidebarBadgeCounts,
@@ -36,10 +40,16 @@ export default function IncidentDetailClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

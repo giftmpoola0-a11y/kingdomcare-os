@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom'
 import { ArrowLeft, TriangleAlert } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -50,13 +51,16 @@ const FOLLOW_UP_CHIPS = [
   'No follow-up needed',
 ]
 
-interface NewIncidentClientProps {
+interface NewIncidentClientProps extends AppChromeProps {
   activeResidents: ResidentRecord[]
   loadError: string | null
   sidebarBadgeCounts: SidebarBadgeCounts
 }
 
 export default function NewIncidentClient({
+  role,
+  userDisplayName,
+  careHomeName,
   activeResidents,
   loadError,
   sidebarBadgeCounts,
@@ -81,10 +85,16 @@ export default function NewIncidentClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

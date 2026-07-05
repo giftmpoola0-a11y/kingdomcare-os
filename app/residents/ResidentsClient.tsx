@@ -7,6 +7,7 @@ import { useRef, useState, useTransition } from 'react'
 import { Building2, Eye, ImagePlus, Pencil, RotateCcw, Trash2, Users, UserPlus } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
 import type { ResidentRecord, ResidentSex } from '@/app/lib/supabase/residents'
@@ -201,7 +202,7 @@ function ResidentPhotoField({ resident }: { resident: ResidentRecord }) {
   )
 }
 
-export interface ResidentsClientProps {
+export interface ResidentsClientProps extends AppChromeProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
   loadError: string | null
@@ -209,6 +210,9 @@ export interface ResidentsClientProps {
 }
 
 export default function ResidentsClient({
+  role,
+  userDisplayName,
+  careHomeName,
   initialResidents,
   isAdmin,
   loadError,
@@ -384,10 +388,16 @@ export default function ResidentsClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

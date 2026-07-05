@@ -22,7 +22,11 @@ const navHrefMap: Record<string, string> = {
   Account: '/account',
 }
 
-const ADMIN_ONLY_LABELS = new Set(['Manage Staff Access'])
+const ROLE_NAV_LABELS: Record<MembershipRole, Set<string>> = {
+  admin: new Set(['Dashboard', 'Residents', 'Shifts', 'New Shift', 'Reports', 'Incidents', 'Medications', 'Tasks', 'Staff', 'Account']),
+  nurse: new Set(['Dashboard', 'Residents', 'Shifts', 'Tasks', 'Incidents', 'Medications', 'Account']),
+  caregiver: new Set(['Dashboard', 'Residents', 'Shifts', 'New Shift', 'Tasks', 'Incidents', 'Account']),
+}
 
 function isItemActive(pathname: string, label: string) {
   const href = navHrefMap[label] ?? '/'
@@ -73,11 +77,11 @@ export function AppSidebar({
 }) {
   const pathname = usePathname()
   const visibleNavItems = navItems.filter((item) => {
-    if (role !== 'admin' && ADMIN_ONLY_LABELS.has(item.label)) {
-      return false
+    if (!role) {
+      return true
     }
 
-    return true
+    return ROLE_NAV_LABELS[role].has(item.label)
   })
 
   return (

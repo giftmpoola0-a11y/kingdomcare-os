@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { NotebookPen, CheckCircle2 } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { SHIFT_TYPES } from '@/app/data/demoResidents'
 import { FIELD_CHIPS, INITIAL_FORM, NOTE_FIELDS } from '@/app/data/quickNoteChips'
 import { buildReport } from '@/app/lib/professionalSummary'
@@ -33,7 +34,7 @@ function isShiftType(value: string): value is ShiftType {
   return value === 'Morning' || value === 'Evening' || value === 'Overnight'
 }
 
-export interface NewShiftClientProps {
+export interface NewShiftClientProps extends AppChromeProps {
   activeResidents: ResidentRecord[]
   initialResidentId: string | null
   loadError: string | null
@@ -41,6 +42,9 @@ export interface NewShiftClientProps {
 }
 
 export default function NewShiftClient({
+  role,
+  userDisplayName,
+  careHomeName,
   activeResidents,
   initialResidentId,
   loadError,
@@ -153,10 +157,16 @@ export default function NewShiftClient({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} badgeCounts={sidebarBadgeCounts} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        badgeCounts={sidebarBadgeCounts}
+        role={role}
+        careHomeName={careHomeName}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopbar onMenu={() => setSidebarOpen(true)} />
+        <AppTopbar onMenu={() => setSidebarOpen(true)} role={role} userDisplayName={userDisplayName} />
 
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 md:px-6 lg:py-8">
           <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">

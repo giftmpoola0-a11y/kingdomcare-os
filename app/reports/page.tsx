@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getAppChromeProps } from '@/app/lib/app-chrome'
 import { getCurrentCareHomeIncidents, type IncidentRecord } from '@/app/lib/supabase/incidents'
 import {
   getCurrentCareHomeMedicationAlerts,
@@ -96,6 +97,7 @@ export default async function ReportsPage() {
     <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
       <div className="v0-dashboard-theme dark">
         <ReportsClient
+          {...getAppChromeProps(access)}
           residents={residents}
           activeResidentsCount={activeResidentsCount}
           tasks={tasks}
