@@ -336,8 +336,10 @@ export default async function DashboardPage() {
     }
   )
 
+  const canLoadCareTeamMembers = membership.role === 'admin' || membership.role === 'nurse'
+
   const careTeamMembersPromise =
-    access.role === 'admin' || access.role === 'nurse'
+    canLoadCareTeamMembers
       ? loadDashboardData(
           dashboardTimings,
           'careTeamMembers',
