@@ -7,6 +7,16 @@ import { useRef, useState, useTransition } from 'react'
 import { Building2, Eye, ImagePlus, Pencil, RotateCcw, Trash2, Users, UserPlus } from 'lucide-react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
@@ -227,6 +237,8 @@ export default function ResidentsClient({
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
   const [actionError, setActionError] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<ResidentRecord | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   const [form, setForm] = useState({
     name: '',
     age: '',
@@ -346,16 +358,22 @@ export default function ResidentsClient({
     })
   }
 
-  function handleDeleteResident(id: string) {
-    if (!window.confirm('Delete this resident? This cannot be undone.')) return
+  function handleRequestDelete(resident: ResidentRecord) {
+    setDeleteError('')
+    setDeleteTarget(resident)
+  }
 
-    setActionError('')
+  function handleConfirmDelete() {
+    if (!deleteTarget) return
+
+    setDeleteError('')
     startTransition(async () => {
-      const result = await deleteResidentAction(id)
+      const result = await deleteResidentAction(deleteTarget.id)
       if (!result.success) {
-        setActionError(result.error)
+        setDeleteError(result.error)
         return
       }
+      setDeleteTarget(null)
       router.refresh()
     })
   }
@@ -774,7 +792,7 @@ export default function ResidentsClient({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => handleDeleteResident(resident.id)}
+                          onClick={() => handleRequestDelete(resident)}
                           className="inline-flex items-center gap-2 rounded-xl bg-rose-500/15 px-4 py-2.5 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
                         >
                           <Trash2 className="size-3.5" />
@@ -810,6 +828,53 @@ export default function ResidentsClient({
               })}
             </div>
           )}
+
+          <AlertDialog
+            open={Boolean(deleteTarget)}
+            onOpenChange={(open) => {
+              if (open || isPending) return
+              setDeleteTarget(null)
+              setDeleteError('')
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete resident?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will archive/remove <span className="font-semibold text-foreground">{deleteTarget?.name}</span>{' '}
+                  from active views. Historical records may remain for audit continuity.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              {deleteError && (
+                <p
+                  role="alert"
+                  className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
+                >
+                  {deleteError}
+                </p>
+              )}
+
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={isPending}
+                  className="rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={isPending}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    handleConfirmDelete()
+                  }}
+                  className="rounded-xl bg-rose-500/15 px-5 py-2.5 text-sm font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPending ? 'Deleting...' : 'Delete resident'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </main>
       </div>
     </div>

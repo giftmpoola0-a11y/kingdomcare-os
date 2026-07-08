@@ -217,8 +217,8 @@ async function cleanupResidentByName(page: Page, residentName: string, diagnosti
       return
     }
 
-    page.once('dialog', (dialog) => dialog.accept())
     await residentCard.getByRole('button', { name: /^delete$/i }).click()
+    await page.getByRole('button', { name: /^delete resident$/i }).click()
     await waitForResidentDeleteOutcome(page, residentName, diagnostics)
     await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
   }
