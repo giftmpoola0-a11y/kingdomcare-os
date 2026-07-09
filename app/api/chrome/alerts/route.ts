@@ -9,6 +9,7 @@ const TASK_ALERT_LIMIT = 4
 const INCIDENT_ALERT_LIMIT = 4
 const MEDICATION_ALERT_LIMIT = 3
 const TOTAL_LIMIT = 8
+const RESIDENT_ADDITION_LIMIT = 5
 
 export async function GET() {
   try {
@@ -27,6 +28,7 @@ export async function GET() {
     const incidentAlertsEnabled = canAccessAppNavLabel(access.role, 'Incidents')
     const medicationAlertsEnabled =
       canAccessAppNavLabel(access.role, 'Medications') && access.role !== 'caregiver'
+    const residentAdditionsEnabled = canAccessAppNavLabel(access.role, 'Residents')
     const nowIso = new Date().toISOString()
 
     const overdueTasksPromise = taskAlertsEnabled
@@ -63,16 +65,34 @@ export async function GET() {
           .limit(MEDICATION_ALERT_LIMIT)
       : Promise.resolve({ data: [], error: null })
 
-    const [overdueTasksResponse, openIncidentsResponse, medicationAlertsResponse] = await Promise.all([
+    const recentResidentAdditionsPromise = residentAdditionsEnabled
+      ? supabase
+          .from('residents')
+          .select('id, full_name, created_at')
+          .eq('care_home_id', access.careHomeId)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(RESIDENT_ADDITION_LIMIT)
+      : Promise.resolve({ data: [], error: null })
+
+    const [
+      overdueTasksResponse,
+      openIncidentsResponse,
+      medicationAlertsResponse,
+      recentResidentAdditionsResponse,
+    ] = await Promise.all([
       overdueTasksPromise,
       openIncidentsPromise,
       medicationAlertsPromise,
+      recentResidentAdditionsPromise,
     ])
 
     const firstError = [
       overdueTasksResponse.error,
       openIncidentsResponse.error,
       medicationAlertsResponse.error,
+      recentResidentAdditionsResponse.error,
     ].find(Boolean)
 
     if (firstError) {
@@ -142,7 +162,15 @@ export async function GET() {
       })),
     ].slice(0, TOTAL_LIMIT)
 
-    return NextResponse.json({ items: alerts })
+    const residentAdditions = (recentResidentAdditionsResponse.data ?? []).map((resident) => ({
+      id: resident.id,
+      kind: 'resident' as const,
+      title: `Resident added: ${resident.full_name}`,
+      subtitle: buildResidentAdditionSubtitle(resident.created_at),
+      href: `${APP_NAV_HREFS.Residents}/${resident.id}`,
+    }))
+
+    return NextResponse.json({ items: alerts, residents: residentAdditions })
   } catch (error) {
     console.error('Topbar alerts failed:', error)
     return NextResponse.json({ error: 'Unable to load alerts right now.' }, { status: 500 })
@@ -165,6 +193,10 @@ function buildMedicationAlertSubtitle(severity: string | null, residentName: str
   const residentLabel = residentName ? `Resident: ${residentName}` : 'Medication alert'
   const severityLabel = severity ? `${capitalize(severity)} severity` : 'Needs follow-up'
   return `${residentLabel} - ${severityLabel}`
+}
+
+function buildResidentAdditionSubtitle(createdAt: string) {
+  return `Added ${formatTimestamp(createdAt)}`
 }
 
 function formatTimestamp(value: string) {
