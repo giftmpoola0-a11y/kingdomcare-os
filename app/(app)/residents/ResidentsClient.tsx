@@ -3,8 +3,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useRef, useState, useTransition } from 'react'
-import { Building2, Eye, ImagePlus, Pencil, RotateCcw, Trash2, Users, UserPlus } from 'lucide-react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { Building2, Eye, ImagePlus, Pencil, RotateCcw, Trash2, Users, UserPlus, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -209,6 +209,75 @@ function ResidentPhotoField({ resident }: { resident: ResidentRecord }) {
   )
 }
 
+function NewResidentPhotoField({
+  previewUrl,
+  error,
+  disabled,
+  onFileSelected,
+  onClear,
+}: {
+  previewUrl: string | null
+  error: string
+  disabled: boolean
+  onFileSelected: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onClear: () => void
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <div className="space-y-1.5">
+      <p className="block text-sm font-semibold text-foreground">Resident Photo</p>
+      <div className="flex items-center gap-4">
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-muted-foreground ring-1 ring-border/80">
+          {previewUrl ? (
+            <Image src={previewUrl} alt="" fill sizes="64px" className="object-cover" />
+          ) : (
+            <ImagePlus className="size-5" />
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={onFileSelected}
+          />
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+          >
+            <ImagePlus className="size-3.5" />
+            {previewUrl ? 'Change Photo' : 'Select Photo'}
+          </button>
+          {previewUrl && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onClear}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
+            >
+              <X className="size-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Optional. JPG, PNG, or WebP up to 5MB. Uploaded once the resident is saved.
+      </p>
+      {error && (
+        <p role="alert" className="text-xs font-medium text-rose-300">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export interface ResidentsClientProps {
   initialResidents: ResidentRecord[]
   isAdmin: boolean
@@ -241,6 +310,19 @@ export default function ResidentsClient({
     notes: '',
     sex: 'unknown' as ResidentSex,
   })
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null)
+  const [pendingPhotoPreviewUrl, setPendingPhotoPreviewUrl] = useState<string | null>(null)
+  const [pendingPhotoError, setPendingPhotoError] = useState('')
+  const [photoWarning, setPhotoWarning] = useState('')
+  const pendingPhotoPreviewUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (pendingPhotoPreviewUrlRef.current) {
+        URL.revokeObjectURL(pendingPhotoPreviewUrlRef.current)
+      }
+    }
+  }, [])
 
   const visibleResidents = residents.filter(
     (resident) => showArchived || resident.status !== 'archived'
@@ -271,12 +353,57 @@ export default function ResidentsClient({
     })
   }
 
+  function clearPendingPhotoSelection() {
+    if (pendingPhotoPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPhotoPreviewUrlRef.current)
+      pendingPhotoPreviewUrlRef.current = null
+    }
+    setPendingPhotoFile(null)
+    setPendingPhotoPreviewUrl(null)
+    setPendingPhotoError('')
+  }
+
   function resetForm() {
     setForm({ name: '', age: '', careLevel: '', primarySupportNeeds: '', notes: '', sex: 'unknown' })
     setEditingResidentId(null)
     setShowForm(false)
     setFormError('')
     setActionError('')
+    clearPendingPhotoSelection()
+  }
+
+  function handlePendingPhotoSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setPendingPhotoError('Photo must be a JPG, JPEG, PNG, or WebP image.')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPendingPhotoError('Photo must be smaller than 5MB.')
+      return
+    }
+
+    if (pendingPhotoPreviewUrlRef.current) {
+      URL.revokeObjectURL(pendingPhotoPreviewUrlRef.current)
+    }
+    const objectUrl = URL.createObjectURL(file)
+    pendingPhotoPreviewUrlRef.current = objectUrl
+
+    setPendingPhotoError('')
+    setPendingPhotoFile(file)
+    setPendingPhotoPreviewUrl(objectUrl)
+  }
+
+  function handleClearPendingPhoto() {
+    clearPendingPhotoSelection()
+  }
+
+  function handleOpenNewResidentForm() {
+    setPhotoWarning('')
+    setShowForm(true)
   }
 
   function handleEditResident(resident: ResidentRecord) {
@@ -292,6 +419,8 @@ export default function ResidentsClient({
     setShowForm(true)
     setFormError('')
     setActionError('')
+    setPhotoWarning('')
+    clearPendingPhotoSelection()
   }
 
   function handleSaveResident() {
@@ -327,23 +456,50 @@ export default function ResidentsClient({
     }
 
     setActionError('')
+    setPhotoWarning('')
 
     startTransition(async () => {
-      const result = editingResidentId
-        ? await updateResidentAction({
-            id: editingResidentId,
-            name,
-            age,
-            careLevel,
-            primarySupportNeeds,
-            notes,
-            sex: form.sex,
-          })
-        : await createResidentAction({ name, age, careLevel, primarySupportNeeds, notes, sex: form.sex })
+      if (editingResidentId) {
+        const result = await updateResidentAction({
+          id: editingResidentId,
+          name,
+          age,
+          careLevel,
+          primarySupportNeeds,
+          notes,
+          sex: form.sex,
+        })
 
-      if (!result.success) {
-        setActionError(result.error)
+        if (!result.success) {
+          setActionError(result.error)
+          return
+        }
+
+        resetForm()
+        router.refresh()
         return
+      }
+
+      const createResult = await createResidentAction({ name, age, careLevel, primarySupportNeeds, notes, sex: form.sex })
+
+      if (!createResult.success) {
+        setActionError(createResult.error)
+        return
+      }
+
+      if (pendingPhotoFile) {
+        const photoFormData = new FormData()
+        photoFormData.append('photo', pendingPhotoFile)
+        const photoResult = await uploadResidentPhotoAction(createResult.resident.id, photoFormData)
+
+        if (!photoResult.success) {
+          resetForm()
+          router.refresh()
+          setPhotoWarning(
+            `${createResult.resident.name} was created, but the photo upload failed: ${photoResult.error}. You can add a photo from the resident's Edit form.`
+          )
+          return
+        }
       }
 
       resetForm()
@@ -428,7 +584,7 @@ export default function ResidentsClient({
                   <button
                     type="button"
                     disabled={isPending}
-                    onClick={() => (showForm ? resetForm() : setShowForm(true))}
+                    onClick={() => (showForm ? resetForm() : handleOpenNewResidentForm())}
                     className={cn(
                       'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                       showForm
@@ -490,6 +646,15 @@ export default function ResidentsClient({
             </p>
           )}
 
+          {photoWarning && (
+            <p
+              role="alert"
+              className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-200"
+            >
+              {photoWarning}
+            </p>
+          )}
+
           {showForm && isAdmin && (
             <section className="mt-6 rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
               <div className="flex items-center gap-3">
@@ -505,7 +670,17 @@ export default function ResidentsClient({
               </div>
 
               <div className="mt-6 space-y-5">
-                {editingResident && <ResidentPhotoField resident={editingResident} />}
+                {editingResident ? (
+                  <ResidentPhotoField resident={editingResident} />
+                ) : (
+                  <NewResidentPhotoField
+                    previewUrl={pendingPhotoPreviewUrl}
+                    error={pendingPhotoError}
+                    disabled={isPending}
+                    onFileSelected={handlePendingPhotoSelected}
+                    onClear={handleClearPendingPhoto}
+                  />
+                )}
 
                 <div className="space-y-1.5">
                   <label htmlFor="residentName" className="block text-sm font-semibold text-foreground">
@@ -658,7 +833,7 @@ export default function ResidentsClient({
                   {isAdmin && (
                     <button
                       type="button"
-                      onClick={() => setShowForm(true)}
+                      onClick={handleOpenNewResidentForm}
                       className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                     >
                       <UserPlus className="size-4" />

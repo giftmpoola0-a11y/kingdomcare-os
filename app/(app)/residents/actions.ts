@@ -9,6 +9,7 @@ import {
   uploadResidentPhoto,
   removeResidentPhoto,
   type CreateResidentInput,
+  type ResidentRecord,
   type UpdateResidentInput,
 } from '@/app/lib/supabase/residents'
 
@@ -16,13 +17,17 @@ export type ResidentActionResult =
   | { success: true }
   | { success: false; error: string }
 
+export type CreateResidentActionResult =
+  | { success: true; resident: ResidentRecord }
+  | { success: false; error: string }
+
 export async function createResidentAction(
   input: CreateResidentInput
-): Promise<ResidentActionResult> {
+): Promise<CreateResidentActionResult> {
   try {
-    await createResident(input)
+    const resident = await createResident(input)
     revalidatePath('/residents')
-    return { success: true }
+    return { success: true, resident }
   } catch (error) {
     return {
       success: false,
