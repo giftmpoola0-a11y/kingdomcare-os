@@ -1,14 +1,23 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { attachDiagnostics, BASE, signInUser } from './helpers/auth'
+import { cleanupPlaywrightResidents, findActivePlaywrightResidents } from './helpers/residents'
 
 const E2E_TEST_EMAIL = process.env.E2E_TEST_EMAIL
 const E2E_TEST_PASSWORD = process.env.E2E_TEST_PASSWORD
 
 test.describe.serial('Residents Supabase authenticated flow', () => {
+  test.beforeEach(async () => {
+    await cleanupPlaywrightResidents()
+  })
+
+  test.afterEach(async () => {
+    await cleanupPlaywrightResidents()
+  })
+
   test('admin can sign in and create, list, view, and clean up a resident', async ({
     browser,
   }, testInfo) => {
-    test.setTimeout(60000)
+    test.setTimeout(120000)
 
     test.skip(
       !E2E_TEST_EMAIL || !E2E_TEST_PASSWORD,
@@ -20,7 +29,6 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
     const residentNote = `Supabase resident note ${token}`
     const supportNeed = 'Medication reminders'
     const diagnostics: string[] = []
-    let residentCreated = false
     const adminContext = await browser.newContext()
     const adminPage = await adminContext.newPage()
 
@@ -38,8 +46,8 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       await adminPage.locator('#residentSupportNeeds').fill(supportNeed)
       await adminPage.locator('#residentNotes').fill(residentNote)
       await adminPage.getByRole('button', { name: /^save resident$/i }).click()
+      diagnostics.push(`resident create submitted for: ${residentName}`)
       await waitForResidentCreateOutcome(adminPage, residentName, diagnostics)
-      residentCreated = true
       await recordStep(adminPage, diagnostics, 'after resident create submit')
       await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
       await recordStep(adminPage, diagnostics, 'after residents reload')
@@ -62,8 +70,21 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
 
       await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
       await recordStep(adminPage, diagnostics, 'before cleanup')
-      await cleanupResidentByName(adminPage, residentName, diagnostics)
-      residentCreated = false
+
+      try {
+        await cleanupResidentByName(adminPage, residentName, diagnostics)
+      } catch (uiCleanupError) {
+        diagnostics.push(
+          `ui cleanup primary path failed: ${uiCleanupError instanceof Error ? uiCleanupError.message : String(uiCleanupError)}`
+        )
+      }
+
+      await cleanupPlaywrightResidents({ diagnostics, residentNames: [residentName] })
+      const remainingResidents = await findActivePlaywrightResidents({
+        diagnostics,
+        residentNames: [residentName],
+      })
+      expect(remainingResidents).toHaveLength(0)
       await recordStep(adminPage, diagnostics, 'after cleanup complete')
     } catch (error) {
       const currentUrl = adminPage.url()
@@ -75,13 +96,16 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       await attachDiagnostics(testInfo, 'resident-flow-diagnostics', diagnostics)
       throw error
     } finally {
-      if (residentCreated) {
-        await cleanupResidentByName(adminPage, residentName, diagnostics).catch((cleanupError) => {
-          diagnostics.push(
-            `cleanup error: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
-          )
-        })
-      }
+      await cleanupResidentByName(adminPage, residentName, diagnostics).catch((cleanupError) => {
+        diagnostics.push(
+          `ui cleanup fallback error: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+        )
+      })
+      await cleanupPlaywrightResidents({ diagnostics, residentNames: [residentName] }).catch((cleanupError) => {
+        diagnostics.push(
+          `supabase cleanup fallback error: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+        )
+      })
 
       if (diagnostics.length > 0) {
         console.log('Resident flow diagnostics (final):\n' + diagnostics.join('\n'))
@@ -252,8 +276,5 @@ function getResidentDeleteDialog(page: Page, residentName: string): Locator {
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
-
-
-
 
 

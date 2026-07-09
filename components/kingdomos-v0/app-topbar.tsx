@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Bell, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck } from 'lucide-react'
+import { Bell, CheckCheck, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -24,18 +24,21 @@ interface SearchResult {
 
 interface AlertItem {
   id: string
-  kind: 'task' | 'incident' | 'medication_alert'
+  kind: 'task' | 'incident' | 'medication_alert' | 'resident'
+  group: 'operational' | 'resident'
   title: string
   subtitle: string
   href: string
+  checked: boolean
+  checkable: boolean
+  notificationKey: string | null
+  statusLabel: string
 }
 
-interface ResidentAlertItem {
-  id: string
-  kind: 'resident'
-  title: string
-  subtitle: string
-  href: string
+interface AlertsPayload {
+  totalCount: number
+  unreadCount: number
+  items: AlertItem[]
 }
 
 const SEARCH_KIND_LABELS: Record<SearchResult['kind'], string> = {
@@ -45,7 +48,7 @@ const SEARCH_KIND_LABELS: Record<SearchResult['kind'], string> = {
   shift_report: 'Shift report',
 }
 
-const ALERT_KIND_LABELS: Record<AlertItem['kind'], string> = {
+const ALERT_KIND_LABELS: Record<Extract<AlertItem['kind'], 'task' | 'incident' | 'medication_alert'>, string> = {
   task: 'Overdue task',
   incident: 'Open incident',
   medication_alert: 'Medication alert',
@@ -54,9 +57,16 @@ const ALERT_KIND_LABELS: Record<AlertItem['kind'], string> = {
 const SEARCH_INPUT_CLASSES =
   'h-12 w-full rounded-2xl border border-white/10 bg-background/80 pl-11 pr-4 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/25 placeholder:text-muted-foreground [font-family:var(--font-v0-sans,var(--font-geist-sans),system-ui,sans-serif)]'
 
+const EMPTY_ALERTS_PAYLOAD: AlertsPayload = {
+  totalCount: 0,
+  unreadCount: 0,
+  items: [],
+}
+
 export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTopbarProps) {
   const alertsPanelRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const alertsFetchingRef = useRef(false)
   const roleLabel = formatRoleLabel(role)
   const badgeLabel = role ? roleLabel : 'Workspace'
   const secondaryLabel = formatSecondaryLabel(role)
@@ -69,12 +79,10 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [alertsOpen, setAlertsOpen] = useState(false)
-  const [alerts, setAlerts] = useState<AlertItem[]>([])
-  const [residentAlerts, setResidentAlerts] = useState<ResidentAlertItem[]>([])
+  const [alertsData, setAlertsData] = useState<AlertsPayload>(EMPTY_ALERTS_PAYLOAD)
   const [alertsLoading, setAlertsLoading] = useState(false)
   const [alertsError, setAlertsError] = useState('')
-  const alertsBadgeCount = alerts.length + residentAlerts.length
-  const alertsFetchingRef = useRef(false)
+  const [isMarkingChecked, startMarkingCheckedTransition] = useTransition()
 
   useEffect(() => {
     if (!searchOpen) {
@@ -145,51 +153,9 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
 
   useEffect(() => {
     const controller = new AbortController()
-
-    async function loadAlerts() {
-      alertsFetchingRef.current = true
-      setAlertsLoading(true)
-      setAlertsError('')
-
-      try {
-        const response = await fetch('/api/chrome/alerts', {
-          signal: controller.signal,
-          cache: 'no-store',
-        })
-        const payload = (await response.json()) as {
-          error?: string
-          items?: AlertItem[]
-          residents?: ResidentAlertItem[]
-        }
-
-        if (!response.ok) {
-          throw new Error(payload.error || 'Unable to load alerts right now.')
-        }
-
-        setAlerts(Array.isArray(payload.items) ? payload.items : [])
-        setResidentAlerts(Array.isArray(payload.residents) ? payload.residents : [])
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return
-        }
-
-        setAlerts([])
-        setResidentAlerts([])
-        setAlertsError(error instanceof Error ? error.message : 'Unable to load alerts right now.')
-      } finally {
-        alertsFetchingRef.current = false
-
-        if (!controller.signal.aborted) {
-          setAlertsLoading(false)
-        }
-      }
-    }
-
-    loadAlerts()
+    void loadAlerts(controller.signal)
 
     return () => controller.abort()
-    // Fetch once when the persistent topbar mounts so the bell badge reflects
-    // real state without re-fetching on every client-side route transition.
   }, [])
 
   useEffect(() => {
@@ -198,52 +164,9 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
     }
 
     const controller = new AbortController()
-
-    async function refreshAlerts() {
-      alertsFetchingRef.current = true
-      setAlertsLoading(true)
-      setAlertsError('')
-
-      try {
-        const response = await fetch('/api/chrome/alerts', {
-          signal: controller.signal,
-          cache: 'no-store',
-        })
-        const payload = (await response.json()) as {
-          error?: string
-          items?: AlertItem[]
-          residents?: ResidentAlertItem[]
-        }
-
-        if (!response.ok) {
-          throw new Error(payload.error || 'Unable to load alerts right now.')
-        }
-
-        setAlerts(Array.isArray(payload.items) ? payload.items : [])
-        setResidentAlerts(Array.isArray(payload.residents) ? payload.residents : [])
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return
-        }
-
-        setAlerts([])
-        setResidentAlerts([])
-        setAlertsError(error instanceof Error ? error.message : 'Unable to load alerts right now.')
-      } finally {
-        alertsFetchingRef.current = false
-
-        if (!controller.signal.aborted) {
-          setAlertsLoading(false)
-        }
-      }
-    }
-
-    refreshAlerts()
+    void loadAlerts(controller.signal)
 
     return () => controller.abort()
-    // Refresh on open (user-initiated, not a route transition) so stale
-    // badge data updates once the caregiver actually checks the bell,
-    // unless a fetch triggered by the mount effect is already in flight.
   }, [alertsOpen])
 
   useEffect(() => {
@@ -296,6 +219,10 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
     return Array.from(groups.entries())
   }, [searchResults])
 
+  const operationalAlerts = alertsData.items.filter((item) => item.group === 'operational')
+  const residentAlerts = alertsData.items.filter((item) => item.group === 'resident')
+  const unreadResidentAlerts = residentAlerts.filter((item) => item.checkable && !item.checked)
+
   function handleSearchOpenChange(nextOpen: boolean) {
     setSearchOpen(nextOpen)
 
@@ -318,6 +245,76 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
 
   function handleAlertsLinkClick() {
     setAlertsOpen(false)
+  }
+
+  function handleAlertsToggle() {
+    setAlertsOpen((open) => !open)
+  }
+
+  function handleMarkAllChecked() {
+    const notificationKeys = unreadResidentAlerts
+      .map((item) => item.notificationKey)
+      .filter((notificationKey): notificationKey is string => Boolean(notificationKey))
+
+    if (notificationKeys.length === 0 || isMarkingChecked) {
+      return
+    }
+
+    startMarkingCheckedTransition(async () => {
+      setAlertsError('')
+
+      try {
+        const response = await fetch('/api/chrome/alerts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ notificationKeys }),
+        })
+        const payload = (await response.json()) as AlertsPayload & { error?: string }
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'Unable to update notifications right now.')
+        }
+
+        setAlertsData(normalizeAlertsPayload(payload))
+      } catch (error) {
+        setAlertsError(error instanceof Error ? error.message : 'Unable to update notifications right now.')
+      }
+    })
+  }
+
+  async function loadAlerts(signal?: AbortSignal) {
+    alertsFetchingRef.current = true
+    setAlertsLoading(true)
+    setAlertsError('')
+
+    try {
+      const response = await fetch('/api/chrome/alerts', {
+        signal,
+        cache: 'no-store',
+      })
+      const payload = (await response.json()) as AlertsPayload & { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to load alerts right now.')
+      }
+
+      setAlertsData(normalizeAlertsPayload(payload))
+    } catch (error) {
+      if (signal?.aborted) {
+        return
+      }
+
+      setAlertsData(EMPTY_ALERTS_PAYLOAD)
+      setAlertsError(error instanceof Error ? error.message : 'Unable to load alerts right now.')
+    } finally {
+      alertsFetchingRef.current = false
+
+      if (!signal?.aborted) {
+        setAlertsLoading(false)
+      }
+    }
   }
 
   return (
@@ -363,22 +360,22 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
           <div ref={alertsPanelRef} className="relative">
             <button
               type="button"
-              onClick={() => setAlertsOpen((open) => !open)}
+              onClick={handleAlertsToggle}
               className="relative rounded-xl border border-border bg-card p-2.5 text-foreground transition-colors hover:bg-accent"
               aria-label={
-                alertsBadgeCount > 0
-                  ? `Alerts and recent resident additions, ${alertsBadgeCount} new`
-                  : 'Alerts and recent resident additions'
+                alertsData.unreadCount > 0
+                  ? `Notifications, ${alertsData.unreadCount} unchecked`
+                  : 'Notifications'
               }
               aria-expanded={alertsOpen}
             >
               <Bell className="size-[18px]" />
-              {alertsBadgeCount > 0 ? (
+              {alertsData.unreadCount > 0 ? (
                 <span
                   className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-semibold leading-none text-white ring-2 ring-card"
                   aria-hidden="true"
                 >
-                  {alertsBadgeCount > 9 ? '9+' : alertsBadgeCount}
+                  {alertsData.unreadCount > 9 ? '9+' : alertsData.unreadCount}
                 </span>
               ) : null}
             </button>
@@ -386,8 +383,29 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
             {alertsOpen ? (
               <div className="v0-dashboard-theme dark absolute right-0 top-[calc(100%+0.75rem)] z-40 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-white/10 bg-card/95 font-sans text-foreground shadow-[0_26px_90px_rgba(0,0,0,0.52)] ring-1 ring-black/20 backdrop-blur-xl anim-scale-in">
                 <div className="border-b border-white/10 px-5 py-4">
-                  <p className="text-sm font-semibold tracking-tight text-foreground">Alerts</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Real overdue items and recent resident additions.</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold tracking-tight text-foreground">Notifications</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {alertsData.unreadCount > 0
+                          ? `${alertsData.unreadCount} unchecked resident updates.`
+                          : 'Resident updates and active operational alerts.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMarkAllChecked}
+                      disabled={unreadResidentAlerts.length === 0 || isMarkingChecked}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-background/65 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isMarkingChecked ? (
+                        <LoaderCircle className="size-3.5 animate-spin" />
+                      ) : (
+                        <CheckCheck className="size-3.5" />
+                      )}
+                      Mark all as checked
+                    </button>
+                  </div>
                 </div>
 
                 <div className="max-h-[26rem] overflow-y-auto px-3 py-3">
@@ -400,19 +418,19 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                     <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
                       {alertsError}
                     </div>
-                  ) : alerts.length === 0 && residentAlerts.length === 0 ? (
+                  ) : alertsData.items.length === 0 ? (
                     <div className="rounded-2xl border border-white/8 bg-background/70 px-4 py-5 text-sm text-muted-foreground">
                       No active alerts.
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {alerts.length > 0 ? (
+                      {operationalAlerts.length > 0 ? (
                         <div>
                           <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                             Operational alerts
                           </p>
                           <div className="space-y-2">
-                            {alerts.map((alert) => (
+                            {operationalAlerts.map((alert) => (
                               <Link
                                 key={`${alert.kind}:${alert.id}`}
                                 href={alert.href}
@@ -421,9 +439,14 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                                      {ALERT_KIND_LABELS[alert.kind]}
-                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                                        {ALERT_KIND_LABELS[alert.kind as keyof typeof ALERT_KIND_LABELS]}
+                                      </p>
+                                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200 ring-1 ring-amber-400/25">
+                                        {alert.statusLabel}
+                                      </span>
+                                    </div>
                                     <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{alert.title}</p>
                                     <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{alert.subtitle}</p>
                                   </div>
@@ -438,7 +461,7 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                       {residentAlerts.length > 0 ? (
                         <div>
                           <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                            New residents
+                            Resident updates
                           </p>
                           <div className="space-y-2">
                             {residentAlerts.map((resident) => (
@@ -446,10 +469,26 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                                 key={`resident:${resident.id}`}
                                 href={resident.href}
                                 onClick={handleAlertsLinkClick}
-                                className="block rounded-2xl border border-white/8 bg-background/70 px-4 py-3 transition hover:border-white/14 hover:bg-accent/70"
+                                className={`block rounded-2xl border px-4 py-3 transition hover:border-white/14 hover:bg-accent/70 ${
+                                  resident.checked
+                                    ? 'border-white/6 bg-background/55'
+                                    : 'border-emerald-400/20 bg-emerald-500/10'
+                                }`}
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                                        New resident
+                                      </p>
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 ${
+                                        resident.checked
+                                          ? 'bg-white/8 text-muted-foreground ring-white/10'
+                                          : 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/25'
+                                      }`}>
+                                        {resident.statusLabel}
+                                      </span>
+                                    </div>
                                     <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{resident.title}</p>
                                     <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{resident.subtitle}</p>
                                   </div>
@@ -568,6 +607,14 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
       </Dialog>
     </>
   )
+}
+
+function normalizeAlertsPayload(payload: Partial<AlertsPayload> | null | undefined): AlertsPayload {
+  return {
+    totalCount: typeof payload?.totalCount === 'number' ? payload.totalCount : 0,
+    unreadCount: typeof payload?.unreadCount === 'number' ? payload.unreadCount : 0,
+    items: Array.isArray(payload?.items) ? payload.items : [],
+  }
 }
 
 function formatRoleLabel(role: MembershipRole | null) {
