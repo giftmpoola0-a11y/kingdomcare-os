@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { attachDiagnostics, BASE, signInUser } from './helpers/auth'
 
 const E2E_TEST_EMAIL = process.env.E2E_TEST_EMAIL
@@ -44,7 +44,7 @@ test.describe.serial('Residents Supabase authenticated flow', () => {
       await adminPage.goto(`${BASE}/residents`, { waitUntil: 'load' })
       await recordStep(adminPage, diagnostics, 'after residents reload')
 
-      const residentCard = adminPage.locator('article').filter({ hasText: residentName }).first()
+      const residentCard = getResidentCard(adminPage, residentName)
       diagnostics.push(`resident card visible after reload: ${await residentCard.isVisible().catch(() => false)}`)
       await expect(residentCard).toBeVisible()
       await expect(residentCard.getByText('Age 42')).toBeVisible()
@@ -97,7 +97,7 @@ async function waitForResidentCreateOutcome(
   residentName: string,
   diagnostics: string[] = []
 ) {
-  const residentCard = page.locator('article').filter({ hasText: residentName }).first()
+  const residentCard = getResidentCard(page, residentName)
   const formErrorAlert = page.locator('main [role="alert"]').filter({
     hasText: /failed|required|valid|unable|only/i,
   }).first()
@@ -137,26 +137,21 @@ async function waitForResidentDeleteOutcome(
   residentName: string,
   diagnostics: string[] = []
 ) {
-  const residentCard = page.locator('article').filter({ hasText: residentName }).first()
-  const actionErrorAlert = page.locator('main [role="alert"]').filter({
-    hasText: /failed|violates|not found|unable|only/i,
-  }).first()
+  const residentCard = getResidentCard(page, residentName)
+  const deleteDialog = getResidentDeleteDialog(page, residentName)
+  const actionErrorAlert = deleteDialog.locator('[role="alert"]').first()
 
   const outcome = await Promise.race([
-    expect
-      .poll(async () => {
-        await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
-        return await residentCard.count()
-      }, { timeout: 20000 })
-      .toBe(0)
-      .then(() => 'resident-hidden'),
+    expect(residentCard).toBeHidden({ timeout: 20000 }).then(() => 'resident-hidden'),
+    deleteDialog.waitFor({ state: 'hidden', timeout: 20000 }).then(() => 'dialog-closed'),
     actionErrorAlert.waitFor({ state: 'visible', timeout: 20000 }).then(() => 'error'),
   ]).catch(() => 'timeout')
 
   const currentUrl = page.url()
   const residentCount = await residentCard.count().catch(() => 0)
+  const dialogVisible = await deleteDialog.isVisible().catch(() => false)
 
-  if (outcome === 'resident-hidden' || residentCount === 0) {
+  if ((outcome === 'resident-hidden' || outcome === 'dialog-closed') && residentCount === 0) {
     return
   }
 
@@ -167,6 +162,7 @@ async function waitForResidentDeleteOutcome(
   diagnostics.push(`resident delete outcome: ${outcome}`)
   diagnostics.push(`resident delete current url: ${currentUrl}`)
   diagnostics.push(`resident delete visible count: ${residentCount}`)
+  diagnostics.push(`resident delete dialog visible: ${dialogVisible}`)
   diagnostics.push(`resident delete visible error: ${visibleError || 'none'}`)
 
   throw new Error(
@@ -174,6 +170,7 @@ async function waitForResidentDeleteOutcome(
       'Resident delete did not finish successfully.',
       `Outcome: ${outcome}.`,
       `Current URL: ${currentUrl}.`,
+      `Dialog visible: ${dialogVisible}.`,
       visibleError ? `Visible error: ${visibleError}.` : 'Visible error: none.',
     ].join(' ')
   )
@@ -208,7 +205,7 @@ async function cleanupResidentByName(page: Page, residentName: string, diagnosti
   await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const residentCard = page.locator('article').filter({ hasText: residentName }).first()
+    const residentCard = getResidentCard(page, residentName)
     const residentCount = await residentCard.count().catch(() => 0)
     diagnostics.push(`cleanup attempt ${attempt} visible count: ${residentCount}`)
 
@@ -217,17 +214,46 @@ async function cleanupResidentByName(page: Page, residentName: string, diagnosti
       return
     }
 
+    await expect(residentCard).toBeVisible()
     await residentCard.getByRole('button', { name: /^delete$/i }).click()
-    await page.getByRole('button', { name: /^delete resident$/i }).click()
+
+    const deleteDialog = getResidentDeleteDialog(page, residentName)
+    await expect(deleteDialog).toBeVisible()
+    await expect(deleteDialog.getByText(residentName, { exact: true })).toBeVisible()
+
+    const confirmDeleteButton = deleteDialog.getByRole('button', { name: /^delete resident$/i })
+    await confirmDeleteButton.click()
     await waitForResidentDeleteOutcome(page, residentName, diagnostics)
+
     await page.goto(`${BASE}/residents`, { waitUntil: 'load' })
+    await page.getByRole('heading', { name: /resident profiles/i }).waitFor({ state: 'visible', timeout: 10000 })
   }
 
-  const remainingCount = await page.locator('article').filter({ hasText: residentName }).count().catch(() => 0)
+  const remainingCount = await getResidentCard(page, residentName).count().catch(() => 0)
   diagnostics.push(`cleanup remaining count after retries: ${remainingCount}`)
 
   if (remainingCount > 0) {
     throw new Error(`Cleanup could not remove resident ${residentName}.`)
   }
 }
+
+function getResidentCard(page: Page, residentName: string): Locator {
+  return page.locator('article').filter({
+    has: page.getByRole('heading', { name: new RegExp(`^${escapeRegExp(residentName)}$`) }),
+  }).first()
+}
+
+function getResidentDeleteDialog(page: Page, residentName: string): Locator {
+  return page.getByRole('alertdialog').filter({
+    has: page.getByText(residentName, { exact: true }),
+  }).first()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+
+
+
 

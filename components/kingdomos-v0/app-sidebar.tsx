@@ -6,30 +6,12 @@ import { usePathname } from 'next/navigation'
 import { X, LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navItems } from '@/lib/kingdomos-v0-dashboard-data'
+import { APP_NAV_HREFS, ROLE_NAV_LABELS, type AppNavLabel } from '@/app/lib/app-navigation'
 import type { SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 import type { MembershipRole } from '@/app/lib/supabase/access'
 
-const navHrefMap: Record<string, string> = {
-  Dashboard: '/',
-  Residents: '/residents',
-  Shifts: '/shifts',
-  'New Shift': '/shifts/new',
-  Reports: '/reports',
-  Incidents: '/incidents',
-  Medications: '/medications',
-  Tasks: '/tasks',
-  Staff: '/staff',
-  Account: '/account',
-}
-
-const ROLE_NAV_LABELS: Record<MembershipRole, Set<string>> = {
-  admin: new Set(['Dashboard', 'Residents', 'Shifts', 'New Shift', 'Reports', 'Incidents', 'Medications', 'Tasks', 'Staff', 'Account']),
-  nurse: new Set(['Dashboard', 'Residents', 'Shifts', 'Tasks', 'Incidents', 'Medications', 'Account']),
-  caregiver: new Set(['Dashboard', 'Residents', 'Shifts', 'New Shift', 'Tasks', 'Incidents', 'Account']),
-}
-
-function isItemActive(pathname: string, label: string) {
-  const href = navHrefMap[label] ?? '/'
+function isItemActive(pathname: string, label: AppNavLabel) {
+  const href = APP_NAV_HREFS[label] ?? '/'
 
   if (href === '/') {
     return pathname === '/'
@@ -81,7 +63,7 @@ export function AppSidebar({
       return true
     }
 
-    return ROLE_NAV_LABELS[role].has(item.label)
+    return ROLE_NAV_LABELS[role].has(item.label as AppNavLabel)
   })
 
   return (
@@ -133,8 +115,9 @@ export function AppSidebar({
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <ul className="flex flex-col gap-1">
             {visibleNavItems.map((item) => {
-              const href = navHrefMap[item.label] ?? item.href
-              const active = isItemActive(pathname, item.label)
+              const label = item.label as AppNavLabel
+              const href = APP_NAV_HREFS[label] ?? item.href
+              const active = isItemActive(pathname, label)
               const badge = resolveItemBadge(item.label, item.badge, badgeCounts)
 
               return (
