@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { AppChromeProps } from '@/app/lib/app-chrome'
+import { dashboardFont } from '@/app/lib/dashboard-font'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
 import type { ResidentRecord, ResidentSex } from '@/app/lib/supabase/residents'
@@ -230,7 +231,10 @@ export default function ResidentsClient({
 }: ResidentsClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [, startRefreshTransition] = useTransition()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [residents, setResidents] = useState(initialResidents)
+  const [isDeletePending, setIsDeletePending] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -248,15 +252,14 @@ export default function ResidentsClient({
     sex: 'unknown' as ResidentSex,
   })
 
-  const visibleResidents = initialResidents.filter(
+  const visibleResidents = residents.filter(
     (resident) => showArchived || resident.status !== 'archived'
   )
   const editingResident = editingResidentId
-    ? (initialResidents.find((resident) => resident.id === editingResidentId) ?? null)
+    ? (residents.find((resident) => resident.id === editingResidentId) ?? null)
     : null
-  const activeResidentsCount = initialResidents.filter((resident) => resident.status !== 'archived').length
-  const archivedResidentsCount = initialResidents.length - activeResidentsCount
-
+  const activeResidentsCount = residents.filter((resident) => resident.status !== 'archived').length
+  const archivedResidentsCount = residents.length - activeResidentsCount
   function handleChange(field: Exclude<keyof typeof form, 'sex'>, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (formError) setFormError('')
@@ -363,17 +366,26 @@ export default function ResidentsClient({
     setDeleteTarget(resident)
   }
 
-  function handleConfirmDelete() {
-    if (!deleteTarget) return
+  async function handleConfirmDelete() {
+    if (!deleteTarget || isDeletePending) return
+
+    const targetId = deleteTarget.id
 
     setDeleteError('')
-    startTransition(async () => {
-      const result = await deleteResidentAction(deleteTarget.id)
-      if (!result.success) {
-        setDeleteError(result.error)
-        return
-      }
-      setDeleteTarget(null)
+    setIsDeletePending(true)
+
+    const result = await deleteResidentAction(targetId)
+    if (!result.success) {
+      setDeleteError(result.error)
+      setIsDeletePending(false)
+      return
+    }
+
+    setResidents((current) => current.filter((resident) => resident.id !== targetId))
+    setDeleteTarget(null)
+    setIsDeletePending(false)
+
+    startRefreshTransition(() => {
       router.refresh()
     })
   }
@@ -391,7 +403,6 @@ export default function ResidentsClient({
       router.refresh()
     })
   }
-
   function handleRestoreResident(id: string) {
     setActionError('')
     startTransition(async () => {
@@ -779,7 +790,7 @@ export default function ResidentsClient({
                       {isAdmin && !isArchived && (
                         <button
                           type="button"
-                          disabled={isPending}
+                          disabled={isPending || isDeletePending}
                           onClick={() => handleEditResident(resident)}
                           className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
                         >
@@ -791,7 +802,7 @@ export default function ResidentsClient({
                       {isAdmin && !isArchived && !hasLinkedRecords && (
                         <button
                           type="button"
-                          disabled={isPending}
+                          disabled={isPending || isDeletePending}
                           onClick={() => handleRequestDelete(resident)}
                           className="inline-flex items-center gap-2 rounded-xl bg-rose-500/15 px-4 py-2.5 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
                         >
@@ -832,47 +843,59 @@ export default function ResidentsClient({
           <AlertDialog
             open={Boolean(deleteTarget)}
             onOpenChange={(open) => {
-              if (open || isPending) return
+              if (open || isDeletePending) return
               setDeleteTarget(null)
               setDeleteError('')
             }}
           >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete resident?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will archive/remove <span className="font-semibold text-foreground">{deleteTarget?.name}</span>{' '}
-                  from active views. Historical records may remain for audit continuity.
+            <AlertDialogContent
+              className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+            >
+              <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+                  <Trash2 className="size-3.5" />
+                  Delete resident
+                </div>
+                <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Delete resident?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                  <span className="block">
+                    This removes the resident from active views while keeping historical records available for audit continuity.
+                  </span>
+                  <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    {deleteTarget?.name}
+                  </span>
                 </AlertDialogDescription>
               </AlertDialogHeader>
 
-              {deleteError && (
-                <p
-                  role="alert"
-                  className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
-                >
-                  {deleteError}
-                </p>
-              )}
+              <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+                {deleteError && (
+                  <p
+                    role="alert"
+                    className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
+                  >
+                    {deleteError}
+                  </p>
+                )}
 
-              <AlertDialogFooter>
-                <AlertDialogCancel
-                  disabled={isPending}
-                  className="rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={isPending}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    handleConfirmDelete()
-                  }}
-                  className="rounded-xl bg-rose-500/15 px-5 py-2.5 text-sm font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isPending ? 'Deleting...' : 'Delete resident'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
+                <AlertDialogFooter className={cn(deleteError && "mt-4")}>
+                  <AlertDialogCancel
+                    disabled={isDeletePending}
+                    className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={isDeletePending}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      void handleConfirmDelete()
+                    }}
+                    className="rounded-xl border border-rose-400/30 bg-rose-500/18 px-5 py-2.5 text-sm font-semibold text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] transition-colors hover:bg-rose-500/28 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isDeletePending ? 'Deleting...' : 'Delete resident'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </div>
             </AlertDialogContent>
           </AlertDialog>
         </main>
@@ -880,3 +903,8 @@ export default function ResidentsClient({
     </div>
   )
 }
+
+
+
+
+
