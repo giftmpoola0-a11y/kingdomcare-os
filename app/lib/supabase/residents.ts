@@ -1,7 +1,7 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { measureServerStep } from '@/app/lib/perf'
+import { logServerPerf, measureServerStep } from '@/app/lib/perf'
 import type { DemoResident, ResidentStatus } from '@/app/lib/reportTypes'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
 import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
@@ -33,6 +33,10 @@ export interface ResidentRecord extends DemoResident {
   status: ResidentStatus
   sex: ResidentSex
   photoUrl: string | null
+}
+
+export interface ResidentListRecord extends ResidentRecord {
+  photoPath: string | null
 }
 
 export interface ResidentListItem {
@@ -100,6 +104,38 @@ export async function getCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
     { careHomeId }
   )
   return mapResidentRowsToRecords(supabase, data)
+}
+
+export async function getCurrentCareHomeResidentCards(): Promise<ResidentListRecord[]> {
+  const { supabase, careHomeId } = await getResidentContext('read')
+  const data = await measureServerStep(
+    'supabase:residents:list',
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select(RESIDENT_RECORD_SELECT)
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('status', { ascending: true })
+        .order('full_name', { ascending: true })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []) as unknown as ResidentRecordRow[]
+    },
+    { careHomeId }
+  )
+
+  logServerPerf('supabase:residents:list-payload', 0, {
+    careHomeId,
+    residentCount: data.length,
+    photoCount: data.filter((row) => typeof row.photo_path === 'string' && row.photo_path.length > 0).length,
+    payloadBytes: Buffer.byteLength(JSON.stringify(data), 'utf8'),
+  })
+
+  return data.map(mapResidentRowToListRecord)
 }
 
 export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
@@ -341,6 +377,21 @@ export async function mapResidentRowToRecord(
     sex: normalizeResidentSex(row.sex),
     status: normalizeResidentStatus(row.status),
     photoUrl: await getResidentPhotoSignedUrl(supabase, row.photo_path),
+  }
+}
+
+function mapResidentRowToListRecord(row: ResidentRecordRow): ResidentListRecord {
+  return {
+    id: row.id,
+    name: row.full_name,
+    age: typeof row.age === 'number' ? row.age : 0,
+    careLevel: row.care_level,
+    primarySupportNeeds: parsePrimarySupportNeeds(row.primary_support_needs),
+    notes: row.notes ?? '',
+    sex: normalizeResidentSex(row.sex),
+    status: normalizeResidentStatus(row.status),
+    photoUrl: null,
+    photoPath: row.photo_path,
   }
 }
 
@@ -707,6 +758,9 @@ function normalizeResidentStatus(status: string): ResidentStatus {
 function normalizeResidentSex(value: string | null | undefined): ResidentSex {
   return value === 'male' || value === 'female' || value === 'other' ? value : 'unknown'
 }
+
+
+
 
 
 

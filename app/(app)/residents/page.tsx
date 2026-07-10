@@ -1,17 +1,17 @@
 import { measureServerStep } from '@/app/lib/perf'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
-import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
+import { getCurrentCareHomeResidentCards, type ResidentListRecord } from '@/app/lib/supabase/residents'
 import ResidentsClient from './ResidentsClient'
 
 export default async function ResidentsPage() {
   return measureServerStep('route:/residents', async () => {
     const { access } = await getAuthenticatedAppContext()
 
-    let residents: ResidentRecord[] = []
+    let residents: ResidentListRecord[] = []
     let loadError: string | null = null
 
     try {
-      residents = await getCurrentCareHomeResidents()
+      residents = await getCurrentCareHomeResidentCards()
     } catch {
       loadError = 'Unable to load residents. Please refresh the page.'
     }
@@ -26,3 +26,4 @@ export default async function ResidentsPage() {
     )
   })
 }
+

@@ -18,7 +18,7 @@ import {
 import { dashboardFont } from '@/app/lib/dashboard-font'
 import { ResidentQuickChips } from '@/components/kingdomos-v0/residents/resident-quick-chips'
 import { cn } from '@/lib/utils'
-import type { ResidentRecord, ResidentSex } from '@/app/lib/supabase/residents'
+import type { ResidentListRecord, ResidentSex } from '@/app/lib/supabase/residents'
 import {
   archiveResidentAction,
   createResidentAction,
@@ -105,7 +105,7 @@ function formatResidentSex(sex: ResidentSex): string {
   return SEX_OPTIONS.find((option) => option.value === sex)?.label ?? 'Unknown'
 }
 
-function ResidentPhotoField({ resident }: { resident: ResidentRecord }) {
+function ResidentPhotoField({ resident }: { resident: ResidentListRecord }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isPending, startTransition] = useTransition()
@@ -279,7 +279,7 @@ function NewResidentPhotoField({
 }
 
 export interface ResidentsClientProps {
-  initialResidents: ResidentRecord[]
+  initialResidents: ResidentListRecord[]
   isAdmin: boolean
   loadError: string | null
 }
@@ -300,7 +300,7 @@ export default function ResidentsClient({
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
   const [actionError, setActionError] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<ResidentRecord | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ResidentListRecord | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [form, setForm] = useState({
     name: '',
@@ -315,6 +315,7 @@ export default function ResidentsClient({
   const [pendingPhotoError, setPendingPhotoError] = useState('')
   const [photoWarning, setPhotoWarning] = useState('')
   const pendingPhotoPreviewUrlRef = useRef<string | null>(null)
+  const attemptedPhotoPathsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     return () => {
@@ -323,6 +324,105 @@ export default function ResidentsClient({
       }
     }
   }, [])
+  useEffect(() => {
+    const photoPaths = Array.from(
+      new Set(
+        residents
+          .filter(
+            (resident) =>
+              typeof resident.photoPath === 'string' &&
+              resident.photoPath.length > 0 &&
+              !resident.photoUrl &&
+              !attemptedPhotoPathsRef.current.has(resident.photoPath)
+          )
+          .map((resident) => resident.photoPath as string)
+      )
+    )
+
+    if (photoPaths.length === 0) {
+      return
+    }
+
+    photoPaths.forEach((photoPath) => attemptedPhotoPathsRef.current.add(photoPath))
+    let cancelled = false
+    let started = false
+    let idleHandle: number | null = null
+    let timeoutHandle: number | null = null
+
+    const startPhotoFetch = () => {
+      if (started || cancelled) {
+        return
+      }
+
+      started = true
+
+      void fetch('/api/residents/photos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ photoPaths }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error('Unable to load resident photos.')
+          }
+
+          return (await response.json()) as {
+            signedUrls?: Record<string, string>
+          }
+        })
+        .then((payload) => {
+          if (cancelled || !payload.signedUrls) {
+            return
+          }
+
+          setResidents((current) => {
+            let didUpdate = false
+            const nextResidents = current.map((resident) => {
+              if (!resident.photoPath || resident.photoUrl) {
+                return resident
+              }
+
+              const nextPhotoUrl = payload.signedUrls?.[resident.photoPath]
+              if (!nextPhotoUrl) {
+                return resident
+              }
+
+              didUpdate = true
+              return { ...resident, photoUrl: nextPhotoUrl }
+            })
+
+            return didUpdate ? nextResidents : current
+          })
+        })
+        .catch(() => {
+          // Keep initials fallback when photo signing fails or times out.
+        })
+    }
+
+    timeoutHandle = window.setTimeout(startPhotoFetch, 600)
+
+    if ('requestIdleCallback' in window && typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(() => {
+        if (timeoutHandle !== null) {
+          window.clearTimeout(timeoutHandle)
+          timeoutHandle = null
+        }
+        startPhotoFetch()
+      }, { timeout: 1200 })
+    }
+
+    return () => {
+      cancelled = true
+      if (idleHandle !== null && 'cancelIdleCallback' in window && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle)
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle)
+      }
+    }
+  }, [residents])
 
   const visibleResidents = residents.filter(
     (resident) => showArchived || resident.status !== 'archived'
@@ -406,7 +506,7 @@ export default function ResidentsClient({
     setShowForm(true)
   }
 
-  function handleEditResident(resident: ResidentRecord) {
+  function handleEditResident(resident: ResidentListRecord) {
     setForm({
       name: resident.name,
       age: String(resident.age),
@@ -507,7 +607,7 @@ export default function ResidentsClient({
     })
   }
 
-  function handleRequestDelete(resident: ResidentRecord) {
+  function handleRequestDelete(resident: ResidentListRecord) {
     setDeleteError('')
     setDeleteTarget(resident)
   }
@@ -1054,6 +1154,10 @@ export default function ResidentsClient({
     </main>
   )
 }
+
+
+
+
 
 
 
