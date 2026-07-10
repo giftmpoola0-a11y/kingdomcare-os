@@ -8,7 +8,7 @@ import {
 } from '@/app/lib/supabase/shiftReports'
 
 export type ShiftReportActionResult =
-  | { success: true }
+  | { success: true; id: string }
   | { success: false; error: string }
 
 export async function createShiftReportAction(input: {
@@ -20,9 +20,12 @@ export async function createShiftReportAction(input: {
   notes: ShiftReportNoteField[]
 }): Promise<ShiftReportActionResult> {
   try {
-    await createShiftReport(input)
-    revalidatePath('/shifts/new')
-    return { success: true }
+    const report = await createShiftReport(input)
+    revalidatePath('/shifts')
+    revalidatePath(`/shifts/${report.id}`)
+    revalidatePath('/staff')
+    revalidatePath('/')
+    return { success: true, id: report.id }
   } catch (error) {
     return {
       success: false,

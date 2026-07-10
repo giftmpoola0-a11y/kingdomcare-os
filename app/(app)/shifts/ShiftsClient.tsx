@@ -8,11 +8,13 @@ import { cn } from '@/lib/utils'
 
 export interface ShiftsClientProps {
   shiftReports: ShiftReportRecord[]
+  creatorNameById: Record<string, string>
   loadError: string | null
 }
 
 export default function ShiftsClient({
   shiftReports,
+  creatorNameById,
   loadError,
 }: ShiftsClientProps) {
 
@@ -106,7 +108,7 @@ export default function ShiftsClient({
                               Shift date: {formatShiftDate(report.shiftDate)}
                             </MetaPill>
                             <MetaPill icon={<UserRound className="size-3.5" />}>
-                              Saved by: {formatCreatedBy(report.createdBy)}
+                              Saved by: {creatorNameById[report.createdBy] ?? 'Care team member'}
                             </MetaPill>
                             <MetaPill>Notes: {report.notes.length}</MetaPill>
                           </div>
@@ -222,17 +224,6 @@ function formatUpdatedAt(value: string) {
     minute: '2-digit',
   })
 }
-
-function formatCreatedBy(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return 'Unknown'
-  }
-
-  return trimmed.length > 14 ? `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}` : trimmed
-}
-
-
 
 
 

@@ -6,10 +6,12 @@ import type { ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
 
 export interface ShiftReportDetailClientProps {
   shiftReport: ShiftReportRecord
+  createdByName: string
 }
 
 export default function ShiftReportDetailClient({
   shiftReport,
+  createdByName,
 }: ShiftReportDetailClientProps) {
 
   return (
@@ -94,7 +96,7 @@ export default function ShiftReportDetailClient({
               </div>
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <DetailPanel label="Created by" value={formatCreatedBy(shiftReport.createdBy)} />
+                <DetailPanel label="Created by" value={createdByName} />
                 <DetailPanel label="Notes saved" value={`${shiftReport.notes.length}`} />
                 <DetailPanel label="Created" value={formatCreatedAt(shiftReport.createdAt)} />
                 <DetailPanel label="Updated" value={formatCreatedAt(shiftReport.updatedAt)} />
@@ -229,15 +231,6 @@ function formatSummary(value: string) {
 function formatNoteValue(value: string) {
   const trimmed = value.trim()
   return trimmed || 'No note detail was saved.'
-}
-
-function formatCreatedBy(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return 'Unknown'
-  }
-
-  return trimmed
 }
 
 function shortId(value: string) {

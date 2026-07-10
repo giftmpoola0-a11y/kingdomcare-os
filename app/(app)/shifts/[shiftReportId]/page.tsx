@@ -1,6 +1,10 @@
 import { notFound } from 'next/navigation'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
-import { getCurrentCareHomeShiftReportById, type ShiftReportRecord } from '@/app/lib/supabase/shiftReports'
+import {
+  getCurrentCareHomeShiftReportById,
+  getShiftReportCreatorNames,
+  type ShiftReportRecord,
+} from '@/app/lib/supabase/shiftReports'
 import ShiftReportDetailClient from './ShiftReportDetailClient'
 
 export default async function ShiftReportDetailPage(props: PageProps<'/shifts/[shiftReportId]'>) {
@@ -20,5 +24,14 @@ export default async function ShiftReportDetailPage(props: PageProps<'/shifts/[s
     notFound()
   }
 
-  return <ShiftReportDetailClient shiftReport={shiftReport} />
+  let createdByName = 'Care team member'
+
+  try {
+    const creatorNameById = await getShiftReportCreatorNames([shiftReport])
+    createdByName = creatorNameById.get(shiftReport.createdBy) ?? createdByName
+  } catch (error) {
+    console.error('Failed to resolve shift report creator name:', error)
+  }
+
+  return <ShiftReportDetailClient shiftReport={shiftReport} createdByName={createdByName} />
 }

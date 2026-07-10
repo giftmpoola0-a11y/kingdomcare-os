@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { NotebookPen, CheckCircle2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { NotebookPen } from 'lucide-react'
 import { SHIFT_TYPES } from '@/app/data/demoResidents'
 import { FIELD_CHIPS, INITIAL_FORM, NOTE_FIELDS } from '@/app/data/quickNoteChips'
 import { buildReport } from '@/app/lib/professionalSummary'
@@ -41,6 +42,7 @@ export default function NewShiftClient({
   initialResidentId,
   loadError,
 }: NewShiftClientProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [form, setForm] = useState<FormState>(() => ({
@@ -51,16 +53,14 @@ export default function NewShiftClient({
         : '',
   }))
   const [report, setReport] = useState<GeneratedReport | null>(null)
-  const [shiftDateIso, setShiftDateIso] = useState('')
+  const [shiftDateIso, setShiftDateIso] = useState(() => new Date().toISOString().slice(0, 10))
   const [formError, setFormError] = useState('')
   const [actionError, setActionError] = useState('')
-  const [saved, setSaved] = useState(false)
 
   function handleChange(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (report) {
       setReport(null)
-      setSaved(false)
     }
   }
 
@@ -71,7 +71,6 @@ export default function NewShiftClient({
     })
     if (report) {
       setReport(null)
-      setSaved(false)
     }
   }
 
@@ -82,6 +81,10 @@ export default function NewShiftClient({
     }
     if (!form.shiftType) {
       setFormError('Please select a shift type.')
+      return
+    }
+    if (!shiftDateIso) {
+      setFormError('Please select a shift date.')
       return
     }
     setFormError('')
@@ -96,7 +99,6 @@ export default function NewShiftClient({
       return
     }
     setReport(generated)
-    setShiftDateIso(new Date().toISOString().slice(0, 10))
     setStep(3)
   }
 
@@ -119,7 +121,9 @@ export default function NewShiftClient({
         return
       }
 
-      setSaved(true)
+      // Redirect straight to the saved report - that page is the success
+      // confirmation, so there's no need for a separate "saved" screen here.
+      router.push(`/shifts/${result.id}`)
     })
   }
 
@@ -131,18 +135,8 @@ export default function NewShiftClient({
     }
     if (step === 3) {
       setReport(null)
-      setSaved(false)
       setStep(2)
     }
-  }
-
-  function handleReset() {
-    setForm(INITIAL_FORM)
-    setReport(null)
-    setSaved(false)
-    setFormError('')
-    setActionError('')
-    setStep(1)
   }
 
   return (
@@ -209,6 +203,19 @@ export default function NewShiftClient({
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="mt-6 space-y-2">
+                    <label htmlFor="shiftDate" className="block text-sm font-semibold text-foreground">
+                      Shift date
+                    </label>
+                    <input
+                      id="shiftDate"
+                      type="date"
+                      value={shiftDateIso}
+                      onChange={(e) => setShiftDateIso(e.target.value)}
+                      className={INPUT_CLASS}
+                    />
                   </div>
 
                   <div className="mt-6 space-y-2">
@@ -317,11 +324,6 @@ export default function NewShiftClient({
                     >
                       Edit Notes
                     </button>
-                    {saved && (
-                      <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-400/35">
-                        Saved
-                      </span>
-                    )}
                   </div>
 
                   <div className="mt-4 flex items-center gap-3">
@@ -331,7 +333,7 @@ export default function NewShiftClient({
                     <div>
                       <h2 className="text-2xl font-semibold tracking-tight text-foreground">{report.residentName}</h2>
                       <p className="text-sm text-muted-foreground">
-                        {report.shiftType} shift - {report.date}
+                        {report.shiftType} shift - {formatShiftDateForDisplay(shiftDateIso)}
                       </p>
                     </div>
                   </div>
@@ -359,30 +361,14 @@ export default function NewShiftClient({
                   {actionError && <ErrorBanner message={actionError} />}
 
                   <div className="mt-6 border-t border-border pt-4">
-                    {saved ? (
-                      <div className="space-y-3">
-                        <p className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 py-3 text-center text-sm font-semibold text-emerald-300">
-                          <CheckCircle2 className="size-4" />
-                          Shift report saved for {report.residentName}.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={handleReset}
-                          className="w-full rounded-xl border border-border bg-background/70 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-                        >
-                          Start Another Shift
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={handleSaveReport}
-                        className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isPending ? 'Saving...' : 'Save Shift Report'}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={handleSaveReport}
+                      className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isPending ? 'Saving...' : 'Save Shift Report'}
+                    </button>
                   </div>
                 </section>
               )}
@@ -469,6 +455,20 @@ function ErrorBanner({ message }: { message: string }) {
       {message}
     </p>
   )
+}
+
+function formatShiftDateForDisplay(value: string) {
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
 
