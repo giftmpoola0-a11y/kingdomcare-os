@@ -18,6 +18,7 @@ export async function completeCaregiverTaskAction(taskId: string): Promise<Staff
     await completeTask(normalizedTaskId)
     revalidatePath('/staff')
     revalidatePath('/tasks')
+    revalidatePath('/')
     return { success: true }
   } catch (error) {
     return {

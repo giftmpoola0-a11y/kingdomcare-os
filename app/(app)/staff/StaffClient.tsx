@@ -51,18 +51,34 @@ export default function StaffClient({
   const router = useRouter()
   const [isTaskActionPending, startTaskActionTransition] = useTransition()
   const [taskActionError, setTaskActionError] = useState('')
-  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
+  const [tasks, setTasks] = useState(openTasks)
+  const [syncedOpenTasks, setSyncedOpenTasks] = useState(openTasks)
+
+  // Resync local (optimistically-updated) task state when the server sends
+  // fresh props, e.g. after router.refresh(). Adjusting state during render
+  // (rather than in an effect) avoids an extra render/commit cycle.
+  if (openTasks !== syncedOpenTasks) {
+    setSyncedOpenTasks(openTasks)
+    setTasks(openTasks)
+  }
 
   function handleMarkTaskComplete(taskId: string) {
     setTaskActionError('')
-    setPendingTaskId(taskId)
+
+    // Drop the task from the open list immediately - this view only shows
+    // open tasks, so completion should feel instant rather than waiting on
+    // a full page refresh. Restore it if the server call fails.
+    const removedTask = tasks.find((task) => task.id === taskId) ?? null
+    setTasks((current) => current.filter((task) => task.id !== taskId))
 
     startTaskActionTransition(async () => {
       const result = await completeCaregiverTaskAction(taskId)
 
       if (!result.success) {
+        if (removedTask) {
+          setTasks((current) => [...current, removedTask])
+        }
         setTaskActionError(result.error)
-        setPendingTaskId(null)
         return
       }
 
@@ -139,18 +155,16 @@ export default function StaffClient({
                     <div>
                       <h2 className="text-2xl font-semibold tracking-tight text-foreground">Open care tasks</h2>
                       <p className="text-sm text-muted-foreground">
-                        {openTasks.length} task{openTasks.length === 1 ? '' : 's'} need attention.
+                        {tasks.length} task{tasks.length === 1 ? '' : 's'} need attention.
                       </p>
                     </div>
                   </div>
 
-                  {openTasks.length === 0 ? (
-                    <EmptyState message="No open care tasks found right now." />
+                  {tasks.length === 0 ? (
+                    <EmptyState message="No open care tasks right now." />
                   ) : (
                     <div className="mt-6 space-y-4">
-                      {openTasks.slice(0, 8).map((task) => {
-                        const isPending = isTaskActionPending && pendingTaskId === task.id
-
+                      {tasks.slice(0, 8).map((task) => {
                         return (
                           <article
                             key={task.id}
@@ -179,7 +193,7 @@ export default function StaffClient({
                                   onClick={() => handleMarkTaskComplete(task.id)}
                                   className="inline-flex items-center justify-center rounded-xl bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-400/30 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                  {isPending ? 'Completing...' : 'Mark complete'}
+                                  Mark complete
                                 </button>
                               </div>
                             </div>

@@ -34,6 +34,7 @@ export async function createTaskAction(input: {
     })
     revalidatePath('/tasks')
     revalidatePath('/staff')
+    revalidatePath('/')
     return { success: true }
   } catch (error) {
     return {
@@ -55,6 +56,8 @@ export async function toggleTaskCompletionAction(input: {
     }
 
     revalidatePath('/tasks')
+    revalidatePath('/staff')
+    revalidatePath('/')
     return { success: true }
   } catch (error) {
     return {
@@ -68,6 +71,8 @@ export async function deleteTaskAction(id: string): Promise<TaskActionResult> {
   try {
     await softDeleteTask(id)
     revalidatePath('/tasks')
+    revalidatePath('/staff')
+    revalidatePath('/')
     return { success: true }
   } catch (error) {
     return {

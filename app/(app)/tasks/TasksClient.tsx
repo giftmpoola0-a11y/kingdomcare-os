@@ -30,10 +30,20 @@ export default function TasksClient({
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<TaskFilter>('Pending')
   const [actionError, setActionError] = useState('')
+  const [tasks, setTasks] = useState(initialTasks)
+  const [syncedInitialTasks, setSyncedInitialTasks] = useState(initialTasks)
+
+  // Resync local (optimistically-updated) task state when the server sends
+  // fresh props, e.g. after router.refresh(). Adjusting state during render
+  // (rather than in an effect) avoids an extra render/commit cycle.
+  if (initialTasks !== syncedInitialTasks) {
+    setSyncedInitialTasks(initialTasks)
+    setTasks(initialTasks)
+  }
 
   const visibleTasks = useMemo(
-    () => initialTasks.filter((task) => task.status !== 'archived' && task.deletedAt === null),
-    [initialTasks],
+    () => tasks.filter((task) => task.status !== 'archived' && task.deletedAt === null),
+    [tasks],
   )
 
   const todayKey = new Date().toISOString().slice(0, 10)
@@ -64,13 +74,30 @@ export default function TasksClient({
 
   function handleToggleComplete(task: TaskRecord) {
     setActionError('')
+    const wasCompleted = task.status === 'completed'
+
+    // Update the UI immediately so completion feels instant; reconcile with
+    // the server in the background instead of waiting on a full refresh.
+    setTasks((current) =>
+      current.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              status: wasCompleted ? 'open' : 'completed',
+              completedAt: wasCompleted ? null : new Date().toISOString(),
+            }
+          : item,
+      ),
+    )
+
     startTransition(async () => {
       const result = await toggleTaskCompletionAction({
         id: task.id,
-        completed: task.status !== 'completed',
+        completed: !wasCompleted,
       })
 
       if (!result.success) {
+        setTasks((current) => current.map((item) => (item.id === task.id ? task : item)))
         setActionError(result.error)
         return
       }
@@ -83,9 +110,15 @@ export default function TasksClient({
     if (!window.confirm('Delete this task?')) return
 
     setActionError('')
+    const removedTask = tasks.find((item) => item.id === id) ?? null
+    setTasks((current) => current.filter((item) => item.id !== id))
+
     startTransition(async () => {
       const result = await deleteTaskAction(id)
       if (!result.success) {
+        if (removedTask) {
+          setTasks((current) => [...current, removedTask])
+        }
         setActionError(result.error)
         return
       }
@@ -97,9 +130,13 @@ export default function TasksClient({
     if (!window.confirm('Archive completed tasks from this view?')) return
 
     setActionError('')
+    const previousTasks = tasks
+    setTasks((current) => current.filter((item) => item.status !== 'completed'))
+
     startTransition(async () => {
       const result = await clearCompletedTasksAction()
       if (!result.success) {
+        setTasks(previousTasks)
         setActionError(result.error)
         return
       }
@@ -199,7 +236,9 @@ export default function TasksClient({
 
               {filteredTasks.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border bg-background/60 p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No tasks match the current filter yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {getEmptyStateMessage(filter, visibleTasks.length > 0)}
+                  </p>
                   {canManageTasks && visibleTasks.length === 0 ? (
                     <Link
                       href="/tasks/new"
@@ -214,8 +253,9 @@ export default function TasksClient({
                 <div className="space-y-3">
                   {filteredTasks.map((task) => {
                     const residentName = task.residentId
-                      ? activeResidents.find((resident) => resident.id === task.residentId)?.name ?? 'Resident'
-                      : 'House'
+                      ? activeResidents.find((resident) => resident.id === task.residentId)?.name ??
+                        'Resident record unavailable'
+                      : null
                     const isCompleted = task.status === 'completed'
                     const isUrgent = task.priority === 'urgent'
 
@@ -255,12 +295,15 @@ export default function TasksClient({
                                     {task.title}
                                   </h3>
                                   <TaskStatusBadge task={task} />
+                                  <TaskPriorityBadge priority={task.priority} />
                                   <span className="rounded-full border border-border bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
                                     {task.category}
                                   </span>
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">Due {formatDue(task.dueAt)}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">Assigned to: {residentName}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {residentName ? `Resident: ${residentName}` : 'General house task'}
+                                </p>
                               </div>
 
                               {canManageTasks && (
@@ -344,6 +387,31 @@ function TaskStatusBadge({ task }: { task: TaskRecord }) {
   }
 
   return <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-amber-400/35">Open</span>
+}
+
+function TaskPriorityBadge({ priority }: { priority: TaskRecord['priority'] }) {
+  // Urgent already surfaces via TaskStatusBadge; normal is the unremarkable
+  // default, so only low/high need a distinct call-out here.
+  if (priority === 'high') {
+    return <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-orange-300 ring-1 ring-orange-400/35">High priority</span>
+  }
+
+  if (priority === 'low') {
+    return <span className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-sky-300 ring-1 ring-sky-400/35">Low priority</span>
+  }
+
+  return null
+}
+
+function getEmptyStateMessage(filter: TaskFilter, hasAnyTasks: boolean) {
+  if (!hasAnyTasks) {
+    return 'No tasks for this care home yet.'
+  }
+
+  if (filter === 'Pending') return 'No open tasks right now.'
+  if (filter === 'Completed') return 'No completed tasks yet.'
+  if (filter === 'Today') return 'No tasks due today.'
+  return 'No tasks match the current filter yet.'
 }
 
 function formatDue(dueAt: string | null) {

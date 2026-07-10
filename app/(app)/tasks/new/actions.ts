@@ -94,6 +94,7 @@ export async function createTaskFromFormAction(
 
   revalidatePath('/tasks')
   revalidatePath('/staff')
+  revalidatePath('/')
   redirect('/tasks')
 }
 
