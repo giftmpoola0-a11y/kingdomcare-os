@@ -6,7 +6,7 @@ import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
 import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { createTask, type TaskPriority } from '@/app/lib/supabase/tasks'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
-import type { TaskCreateFormState } from './form-state'
+import { GENERAL_TASK_RESIDENT_VALUE, type TaskCreateFormState } from './form-state'
 
 const ALLOWED_PRIORITIES = new Set<TaskPriority>(['low', 'normal', 'high', 'urgent'])
 
@@ -40,7 +40,8 @@ export async function createTaskFromFormAction(
 
   const title = readRequiredText(formData, 'title')
   const description = readOptionalText(formData, 'description')
-  const residentId = readOptionalText(formData, 'residentId')
+  const residentIdRaw = readOptionalText(formData, 'residentId')
+  const residentId = residentIdRaw === GENERAL_TASK_RESIDENT_VALUE ? null : residentIdRaw
   const categoryRaw = readRequiredText(formData, 'category')
   const priorityRaw = readRequiredText(formData, 'priority')
   const dueDate = readOptionalText(formData, 'dueDate')

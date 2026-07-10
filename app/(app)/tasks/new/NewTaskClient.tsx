@@ -6,11 +6,14 @@ import { useFormStatus } from 'react-dom'
 import { ArrowLeft, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { TASK_CATEGORIES } from '@/app/lib/taskTypes'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import { createTaskFromFormAction } from './actions'
-import { INITIAL_TASK_CREATE_STATE } from './form-state'
+import { GENERAL_TASK_RESIDENT_VALUE, INITIAL_TASK_CREATE_STATE } from './form-state'
+
+const SELECT_TRIGGER_CLASSES = 'h-11 w-full rounded-xl bg-input/30'
 
 const PRIORITY_OPTIONS = [
   { value: 'normal', label: 'Normal' },
@@ -103,34 +106,33 @@ export default function NewTaskClient({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Category" htmlFor="category" error={state.fieldErrors.category}>
-                  <select
-                    id="category"
-                    name="category"
-                    defaultValue=""
-                    className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="">Select category...</option>
-                    {TASK_CATEGORIES.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
+                  <Select name="category" defaultValue="">
+                    <SelectTrigger id="category" className={SELECT_TRIGGER_CLASSES}>
+                      <SelectValue placeholder="Select category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TASK_CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
 
                 <Field label="Priority" htmlFor="priority" error={state.fieldErrors.priority}>
-                  <select
-                    id="priority"
-                    name="priority"
-                    defaultValue="normal"
-                    className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    {PRIORITY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Select name="priority" defaultValue="normal">
+                    <SelectTrigger id="priority" className={SELECT_TRIGGER_CLASSES}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRIORITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
 
@@ -155,19 +157,21 @@ export default function NewTaskClient({
               </div>
 
               <Field label="Resident link" htmlFor="residentId" error={state.fieldErrors.residentId}>
-                <select
-                  id="residentId"
-                  name="residentId"
-                  defaultValue=""
-                  className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <option value="">General house task / no resident selected</option>
-                  {activeResidents.map((resident) => (
-                    <option key={resident.id} value={resident.id}>
-                      {resident.name}
-                    </option>
-                  ))}
-                </select>
+                <Select name="residentId" defaultValue={GENERAL_TASK_RESIDENT_VALUE}>
+                  <SelectTrigger id="residentId" className={SELECT_TRIGGER_CLASSES}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={GENERAL_TASK_RESIDENT_VALUE}>
+                      General house task / no resident selected
+                    </SelectItem>
+                    {activeResidents.map((resident) => (
+                      <SelectItem key={resident.id} value={resident.id}>
+                        {resident.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
 
               <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
