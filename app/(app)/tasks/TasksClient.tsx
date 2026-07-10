@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { AlertTriangle, CheckCircle2, ClipboardList, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
 import { cn } from '@/lib/utils'
 import { clearCompletedTasksAction, deleteTaskAction, toggleTaskCompletionAction } from './actions'
@@ -15,7 +15,7 @@ type TaskFilter = (typeof FILTER_OPTIONS)[number]
 
 export interface TasksClientProps {
   initialTasks: TaskRecord[]
-  activeResidents: ResidentRecord[]
+  activeResidents: ResidentListItem[]
   canManageTasks: boolean
   loadError: string | null
 }
@@ -360,5 +360,6 @@ function formatDue(dueAt: string | null) {
     minute: '2-digit',
   })
 }
+
 
 

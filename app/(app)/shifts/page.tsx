@@ -1,3 +1,4 @@
+import { measureServerStep } from '@/app/lib/perf'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
 import {
   getCurrentCareHomeShiftReports,
@@ -6,17 +7,18 @@ import {
 import ShiftsClient from './ShiftsClient'
 
 export default async function ShiftsPage() {
-  await getAuthenticatedAppContext()
+  return measureServerStep('route:/shifts', async () => {
+    await getAuthenticatedAppContext()
 
-  let shiftReports: ShiftReportRecord[] = []
-  let loadError: string | null = null
+    let shiftReports: ShiftReportRecord[] = []
+    let loadError: string | null = null
 
-  try {
-    shiftReports = await getCurrentCareHomeShiftReports()
-  } catch (error) {
-    console.error('Failed to load shift reports:', error)
-    loadError = 'Unable to load shift reports. Please refresh the page.'
-  }
+    try {
+      shiftReports = await getCurrentCareHomeShiftReports()
+    } catch {
+      loadError = 'Unable to load shift reports. Please refresh the page.'
+    }
 
-  return <ShiftsClient shiftReports={shiftReports} loadError={loadError} />
+    return <ShiftsClient shiftReports={shiftReports} loadError={loadError} />
+  })
 }

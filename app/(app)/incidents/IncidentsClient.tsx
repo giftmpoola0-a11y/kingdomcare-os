@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
-import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import { cn } from '@/lib/utils'
 import { createIncidentAction, deleteIncidentAction, resolveIncidentAction } from './actions'
 
@@ -70,7 +70,7 @@ const TEXTAREA_CLASS =
 
 export interface IncidentsClientProps {
   initialIncidents: IncidentRecord[]
-  activeResidents: ResidentRecord[]
+  activeResidents: ResidentListItem[]
   canManageIncidents: boolean
   loadError: string | null
 }
@@ -779,5 +779,6 @@ function formatDateTime(raw: string): string {
     minute: '2-digit',
   })
 }
+
 
 
