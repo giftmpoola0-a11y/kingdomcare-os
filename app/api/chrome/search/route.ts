@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { APP_NAV_HREFS, canAccessAppNavLabel } from '@/app/lib/app-navigation'
-import { getCurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import type { TypedSupabaseClient } from '@/app/lib/supabase/shared'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +25,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient()
-    const access = await getCurrentUserAccess(supabase)
+    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
+    const access = await getCurrentUserServerAccess(supabase)
 
     if (!access.isSignedIn) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
@@ -368,3 +369,5 @@ function trimSnippet(value: string | null | undefined, maxLength = 72) {
 function escapeLikeQuery(value: string) {
   return value.replace(/[%_]/g, '')
 }
+
+

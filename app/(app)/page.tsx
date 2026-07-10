@@ -1,14 +1,14 @@
 import { performance } from 'node:perf_hooks'
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import type { DashboardCareAttentionItem } from '@/components/kingdomos-v0/dashboard/care-attention'
 import type { DashboardCareTeamMember } from '@/components/kingdomos-v0/dashboard/staff-on-duty'
 import type { DashboardRecentActivityItem } from '@/components/kingdomos-v0/dashboard/recent-activity'
 import type { DashboardOperationalQueueItem } from '@/components/kingdomos-v0/dashboard/today-glance'
-import { getCurrentUserAccess, normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
-import type { Database, Tables } from '@/app/lib/supabase/database.types'
+import { normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
+import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
+import type { Tables } from '@/app/lib/supabase/database.types'
 import { mapIncidentRowToRecord, type IncidentRecord } from '@/app/lib/supabase/incidents'
 import {
   mapMedicationAlertRowToRecord,
@@ -17,7 +17,6 @@ import {
   type MedicationRecord,
 } from '@/app/lib/supabase/medications'
 import type { ResidentActivityRecord } from '@/app/lib/supabase/residents'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   getCurrentCareHomeSidebarBadgeCounts,
@@ -33,7 +32,6 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
 })
 
-type TypedSupabaseClient = SupabaseClient<Database>
 type ResidentDirectoryEntry = Pick<Tables<'residents'>, 'id' | 'full_name'>
 type ResidentActivityRow = Pick<Tables<'residents'>, 'id' | 'full_name' | 'status' | 'created_at' | 'updated_at'>
 type DashboardTimingEntry = {
@@ -45,20 +43,9 @@ const DASHBOARD_PROFILE_ENABLED = process.env.KC_PROFILE_DASHBOARD === '1'
 
 export default async function DashboardPage() {
   const dashboardTimings: DashboardTimingEntry[] = []
-  const supabase = (await measureDashboardStep(dashboardTimings, 'getSupabaseServerClient', () =>
-    getSupabaseServerClient()
-  )) as TypedSupabaseClient
-  const access = await measureDashboardStep(dashboardTimings, 'getCurrentUserAccess', () =>
-    getCurrentUserAccess(supabase)
+  const { supabase, access } = await measureDashboardStep(dashboardTimings, 'getAuthenticatedAppContext', () =>
+    getAuthenticatedAppContext()
   )
-
-  if (!access.isSignedIn) {
-    redirect('/auth/sign-in')
-  }
-
-  if (!access.hasCareHome) {
-    redirect('/onboarding')
-  }
 
   const membership = access.membership
 
@@ -998,4 +985,6 @@ function medicationAlertLabel(alertType: MedicationAlertRecord['alertType']) {
       return 'Other Alert'
   }
 }
+
+
 

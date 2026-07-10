@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { APP_NAV_HREFS, canAccessAppNavLabel } from '@/app/lib/app-navigation'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { measureServerStep } from '@/app/lib/perf'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
+import type { TypedSupabaseClient } from '@/app/lib/supabase/shared'
 import type { TablesInsert } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
@@ -42,15 +45,21 @@ interface ResidentAdditionRow {
 
 export async function GET() {
   try {
-    const supabase = await getSupabaseServerClient()
-    const access = await getCurrentUserAccess(supabase)
+    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
+    const access = await getCurrentUserServerAccess(supabase)
     const authErrorResponse = getAlertsAuthErrorResponse(access)
 
     if (authErrorResponse) {
       return authErrorResponse
     }
 
-    return NextResponse.json(await buildAlertsPayload(supabase, access))
+    return NextResponse.json(
+      await measureServerStep(
+        'api:/api/chrome/alerts:GET',
+        () => buildAlertsPayload(supabase, access),
+        { role: access.role }
+      )
+    )
   } catch (error) {
     console.error('Topbar alerts failed:', error)
     return NextResponse.json({ error: 'Unable to load alerts right now.' }, { status: 500 })
@@ -59,8 +68,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await getSupabaseServerClient()
-    const access = await getCurrentUserAccess(supabase)
+    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
+    const access = await getCurrentUserServerAccess(supabase)
     const authErrorResponse = getAlertsAuthErrorResponse(access)
 
     if (authErrorResponse) {
@@ -101,7 +110,13 @@ export async function POST(request: Request) {
       throw new Error(error.message)
     }
 
-    return NextResponse.json(await buildAlertsPayload(supabase, access))
+    return NextResponse.json(
+      await measureServerStep(
+        'api:/api/chrome/alerts:POST',
+        () => buildAlertsPayload(supabase, access),
+        { role: access.role, keys: allowedKeys.length }
+      )
+    )
   } catch (error) {
     console.error('Topbar alert updates failed:', error)
     return NextResponse.json({ error: 'Unable to update notifications right now.' }, { status: 500 })
@@ -288,20 +303,26 @@ async function getRecentResidentAdditions(
   supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
   access: CurrentUserAccess
 ) {
-  const { data, error } = await supabase
-    .from('residents')
-    .select('id, full_name, created_at')
-    .eq('care_home_id', access.careHomeId!)
-    .eq('status', 'active')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(RESIDENT_ADDITION_LIMIT)
+  return measureServerStep(
+    'supabase:alerts:recent-residents',
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select('id, full_name, created_at')
+        .eq('care_home_id', access.careHomeId!)
+        .eq('status', 'active')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(RESIDENT_ADDITION_LIMIT)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []) as ResidentAdditionRow[]
+      return (data ?? []) as ResidentAdditionRow[]
+    },
+    { careHomeId: access.careHomeId }
+  )
 }
 
 async function getReadNotificationKeys(
@@ -309,17 +330,25 @@ async function getReadNotificationKeys(
   userId: string,
   notificationKeys: string[]
 ) {
-  const { data, error } = await supabase
-    .from('notification_reads')
-    .select('notification_key')
-    .eq('user_id', userId)
-    .in('notification_key', notificationKeys)
+  const data = await measureServerStep(
+    'supabase:alerts:notification-reads',
+    async () => {
+      const { data, error } = await supabase
+        .from('notification_reads')
+        .select('notification_key')
+        .eq('user_id', userId)
+        .in('notification_key', notificationKeys)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return new Set((data ?? []).map((row) => row.notification_key))
+      return data ?? []
+    },
+    { userId, keyCount: notificationKeys.length }
+  )
+
+  return new Set(data.map((row) => row.notification_key))
 }
 
 function getAlertsAuthErrorResponse(access: CurrentUserAccess) {
@@ -378,4 +407,9 @@ function formatTimestamp(value: string) {
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
+
+
+
+
+
 

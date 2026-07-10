@@ -1,22 +1,21 @@
 import 'server-only'
 
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { measureServerStep } from '@/app/lib/perf'
 import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   type SidebarBadgeCounts,
 } from '@/app/lib/sidebar-badge-counts'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
-import type { Database } from '@/app/lib/supabase/database.types'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
-
-type TypedSupabaseClient = SupabaseClient<Database>
+import type { TypedSupabaseClient } from '@/app/lib/supabase/shared'
 
 export async function getCurrentCareHomeSidebarBadgeCounts(
   access?: CurrentUserAccess,
   supabaseClient?: TypedSupabaseClient,
 ): Promise<SidebarBadgeCounts> {
   const supabase = supabaseClient ?? ((await getSupabaseServerClient()) as TypedSupabaseClient)
-  const resolvedAccess = access ?? await getCurrentUserAccess(supabase)
+  const resolvedAccess = access ?? await getCurrentUserServerAccess(supabase)
 
   if (!resolvedAccess.careHomeId) {
     return EMPTY_SIDEBAR_BADGE_COUNTS
@@ -29,34 +28,39 @@ export async function getCurrentCareHomeSidebarBadgeCounts(
     { count: openTasksCount, error: tasksError },
     { count: medicationAlertsCount, error: medicationAlertsError },
     { data: recentIncidents, error: incidentsError },
-  ] = await Promise.all([
-    supabase
-      .from('residents')
-      .select('id', { count: 'exact', head: true })
-      .eq('care_home_id', careHomeId)
-      .eq('status', 'active')
-      .is('deleted_at', null),
-    supabase
-      .from('tasks')
-      .select('id', { count: 'exact', head: true })
-      .eq('care_home_id', careHomeId)
-      .in('status', ['open', 'in_progress'])
-      .is('deleted_at', null),
-    supabase
-      .from('medication_alerts')
-      .select('id', { count: 'exact', head: true })
-      .eq('care_home_id', careHomeId)
-      .in('status', ['open', 'reviewing'])
-      .is('deleted_at', null),
-    supabase
-      .from('incidents')
-      .select('id')
-      .eq('care_home_id', careHomeId)
-      .is('deleted_at', null)
-      .order('occurred_at', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(10),
-  ])
+  ] = await measureServerStep(
+    'supabase:sidebar-badge-counts',
+    () =>
+      Promise.all([
+        supabase
+          .from('residents')
+          .select('id', { count: 'exact', head: true })
+          .eq('care_home_id', careHomeId)
+          .eq('status', 'active')
+          .is('deleted_at', null),
+        supabase
+          .from('tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('care_home_id', careHomeId)
+          .in('status', ['open', 'in_progress'])
+          .is('deleted_at', null),
+        supabase
+          .from('medication_alerts')
+          .select('id', { count: 'exact', head: true })
+          .eq('care_home_id', careHomeId)
+          .in('status', ['open', 'reviewing'])
+          .is('deleted_at', null),
+        supabase
+          .from('incidents')
+          .select('id')
+          .eq('care_home_id', careHomeId)
+          .is('deleted_at', null)
+          .order('occurred_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ]),
+    { careHomeId }
+  )
 
   if (residentsError) {
     throw new Error(residentsError.message)

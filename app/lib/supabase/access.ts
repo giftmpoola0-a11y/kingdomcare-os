@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { logServerPerf, measureServerStep } from '@/app/lib/perf'
 
 export type MembershipRole = 'admin' | 'nurse' | 'caregiver'
 
@@ -26,77 +27,114 @@ export interface CurrentUserAccess {
   hasCareHome: boolean
 }
 
+function getPerfNow() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
 export const getCurrentUserAccess = cache(async (
   supabase: SupabaseClient,
   options?: { user?: User | null }
 ): Promise<CurrentUserAccess> => {
-  const user =
-    options && 'user' in options
-      ? options.user ?? null
-      : (await supabase.auth.getUser()).data.user ?? null
+  return measureServerStep('getCurrentUserAccess', async () => {
+    const authStart = getPerfNow()
+    const user =
+      options && 'user' in options
+        ? options.user ?? null
+        : (await supabase.auth.getUser()).data.user ?? null
 
-  if (!user) {
-    return {
-      user: null,
-      profile: null,
-      membership: null,
-      careHomeId: null,
-      careHomeName: '',
-      role: null,
-      isSignedIn: false,
-      hasCareHome: false,
+    logServerPerf('getCurrentUserAccess:auth.getUser', getPerfNow() - authStart, {
+      hasProvidedUser: Boolean(options && 'user' in options),
+      isSignedIn: Boolean(user),
+    })
+
+    if (!user) {
+      return {
+        user: null,
+        profile: null,
+        membership: null,
+        careHomeId: null,
+        careHomeName: '',
+        role: null,
+        isSignedIn: false,
+        hasCareHome: false,
+      }
     }
-  }
 
-  const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] =
-    await Promise.all([
-      supabase.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle(),
-      supabase
-        .from('care_home_members')
-        .select('id, care_home_id, role, care_homes(name)')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle(),
-    ])
+    const [{ data: profile, error: profileError }, { data: membership, error: membershipError }] =
+      await Promise.all([
+        measureProfileLookup(supabase, user.id),
+        measureMembershipLookup(supabase, user.id),
+      ])
 
-  if (profileError) {
-    throw new Error(profileError.message)
-  }
+    if (profileError) {
+      throw new Error(profileError.message)
+    }
 
-  if (membershipError) {
-    throw new Error(membershipError.message)
-  }
+    if (membershipError) {
+      throw new Error(membershipError.message)
+    }
 
-  const role = normalizeMembershipRole(membership?.role)
-  const careHomeName =
-    membership?.care_homes && typeof membership.care_homes === 'object' && 'name' in membership.care_homes
-      ? String(membership.care_homes.name ?? '')
-      : ''
+    const role = normalizeMembershipRole(membership?.role)
+    const careHomeName =
+      membership?.care_homes && typeof membership.care_homes === 'object' && 'name' in membership.care_homes
+        ? String(membership.care_homes.name ?? '')
+        : ''
 
-  return {
-    user,
-    profile: profile
-      ? {
-          fullName: typeof profile.full_name === 'string' ? profile.full_name : '',
-          email: typeof profile.email === 'string' ? profile.email : user.email ?? '',
-        }
-      : null,
-    membership:
-      membership?.id && membership.care_home_id
+    return {
+      user,
+      profile: profile
         ? {
-            id: membership.id,
-            careHomeId: membership.care_home_id,
-            careHomeName,
-            role,
+            fullName: typeof profile.full_name === 'string' ? profile.full_name : '',
+            email: typeof profile.email === 'string' ? profile.email : user.email ?? '',
           }
         : null,
-    careHomeId: membership?.care_home_id ?? null,
-    careHomeName,
-    role,
-    isSignedIn: true,
-    hasCareHome: Boolean(membership?.care_home_id),
-  }
+      membership:
+        membership?.id && membership.care_home_id
+          ? {
+              id: membership.id,
+              careHomeId: membership.care_home_id,
+              careHomeName,
+              role,
+            }
+          : null,
+      careHomeId: membership?.care_home_id ?? null,
+      careHomeName,
+      role,
+      isSignedIn: true,
+      hasCareHome: Boolean(membership?.care_home_id),
+    }
+  })
 })
+
+async function measureProfileLookup(supabase: SupabaseClient, userId: string) {
+  const startedAt = getPerfNow()
+
+  try {
+    return await supabase.from('profiles').select('full_name, email').eq('id', userId).maybeSingle()
+  } finally {
+    logServerPerf('getCurrentUserAccess:profiles.lookup', getPerfNow() - startedAt, {
+      userId,
+    })
+  }
+}
+
+async function measureMembershipLookup(supabase: SupabaseClient, userId: string) {
+  const startedAt = getPerfNow()
+
+  try {
+    return await supabase
+      .from('care_home_members')
+      .select('id, care_home_id, role, care_homes(name)')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle()
+  } finally {
+    logServerPerf('getCurrentUserAccess:care_home_members.lookup', getPerfNow() - startedAt, {
+      userId,
+      includesCareHomeJoin: true,
+    })
+  }
+}
 
 export function normalizeMembershipRole(role: string | null | undefined): MembershipRole | null {
   return role === 'admin' || role === 'nurse' || role === 'caregiver' ? role : null

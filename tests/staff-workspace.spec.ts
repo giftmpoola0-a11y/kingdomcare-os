@@ -20,8 +20,7 @@ test('staff workspace and dashboard routes load', async ({ page }) => {
   await expect(page.locator('body')).toContainText(/Staff Workspace|Caregiver Workspace|Nurse Workspace/i)
 
   await page.goto(`${BASE}/staff/manage`, { waitUntil: 'load' })
-  await page.waitForTimeout(1500)
-  await expect(page.locator('body')).toContainText(/Staff Management/i)
+  await expect(page.getByRole('heading', { name: /staff management/i })).toBeVisible({ timeout: 20000 })
 
   await page.goto(`${BASE}/v0-dashboard`, { waitUntil: 'load' })
   await expect(page.locator('body')).not.toBeEmpty()

@@ -1,9 +1,11 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Json, Tables, TablesInsert } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 type ShiftReportRow = Tables<'shift_reports'>
@@ -49,20 +51,28 @@ export interface CreateShiftReportInput {
 export async function getCurrentCareHomeShiftReports(limit = 20): Promise<ShiftReportRecord[]> {
   const { supabase, careHomeId } = await getShiftReportContext()
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 50) : 20
-  const { data, error } = await supabase
-    .from('shift_reports')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .is('deleted_at', null)
-    .order('shift_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(safeLimit)
+  const data = await measureServerStep(
+    'supabase:shift-reports:list',
+    async () => {
+      const { data, error } = await supabase
+        .from('shift_reports')
+        .select('*')
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('shift_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(safeLimit)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map(mapShiftReportRowToRecord)
+      return data ?? []
+    },
+    { careHomeId, limit: safeLimit }
+  )
+
+  return data.map(mapShiftReportRowToRecord)
 }
 
 export async function getCurrentCareHomeShiftReportById(id: string): Promise<ShiftReportRecord | null> {
@@ -130,7 +140,7 @@ export function mapShiftReportRowToRecord(row: ShiftReportRow): ShiftReportRecor
 
 async function getShiftReportContext() {
   const supabase = await getSupabaseServerClient()
-  const access = await getCurrentUserAccess(supabase)
+  const access = await getCurrentUserServerAccess(supabase)
   const context = getShiftReportAccessContext(access)
 
   return {
@@ -186,3 +196,7 @@ function serializeNoteFields(notes: ShiftReportNoteField[]): Json {
     value: note.value,
   }))
 }
+
+
+
+

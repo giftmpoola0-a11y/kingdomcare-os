@@ -1,12 +1,28 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { measureServerStep } from '@/app/lib/perf'
 import type { DemoResident, ResidentStatus } from '@/app/lib/reportTypes'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
 type ResidentRow = Tables<'residents'>
+type ResidentRecordRow = Pick<
+  ResidentRow,
+  | 'id'
+  | 'full_name'
+  | 'age'
+  | 'care_level'
+  | 'primary_support_needs'
+  | 'notes'
+  | 'sex'
+  | 'status'
+  | 'created_at'
+  | 'updated_at'
+  | 'photo_path'
+>
 type ResidentInsert = TablesInsert<'residents'>
 type ResidentUpdate = TablesUpdate<'residents'>
 type TypedSupabaseClient = SupabaseClient<Database>
@@ -19,9 +35,18 @@ export interface ResidentRecord extends DemoResident {
   photoUrl: string | null
 }
 
+export interface ResidentListItem {
+  id: string
+  name: string
+  status: ResidentStatus
+}
+
 const RESIDENT_PHOTOS_BUCKET = 'resident-photos'
 const RESIDENT_PHOTO_SIGNED_URL_TTL_SECONDS = 60 * 60
 const MAX_RESIDENT_PHOTO_BYTES = 5 * 1024 * 1024
+const RESIDENT_RECORD_SELECT =
+  'id, full_name, age, care_level, primary_support_needs, notes, sex, status, created_at, updated_at, photo_path'
+const RESIDENT_LIST_ITEM_SELECT = 'id, full_name, status'
 const RESIDENT_PHOTO_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -55,54 +80,114 @@ interface ResidentAccessContext {
 
 export async function getCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
   const { supabase, careHomeId } = await getResidentContext('read')
-  const { data, error } = await supabase
+  const data = await measureServerStep(
+    'supabase:residents:list',
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select(RESIDENT_RECORD_SELECT)
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('status', { ascending: true })
+        .order('full_name', { ascending: true })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []) as unknown as ResidentRecordRow[]
+    },
+    { careHomeId }
+  )
+  return mapResidentRowsToRecords(supabase, data)
+}
+
+export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
+  const { supabase, careHomeId } = await getResidentContext('read')
+  const data = await measureServerStep(
+    'supabase:residents:active',
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select(RESIDENT_RECORD_SELECT)
+        .eq('care_home_id', careHomeId)
+        .eq('status', 'active')
+        .is('deleted_at', null)
+        .order('full_name', { ascending: true })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      return (data ?? []) as unknown as ResidentRecordRow[]
+    },
+    { careHomeId }
+  )
+  return mapResidentRowsToRecords(supabase, data)
+}
+
+export async function getCurrentCareHomeResidentListItems(options?: {
+  activeOnly?: boolean
+}): Promise<ResidentListItem[]> {
+  const { supabase, careHomeId } = await getResidentContext('read')
+  const activeOnly = options?.activeOnly === true
+  let query = supabase
     .from('residents')
-    .select('*')
+    .select(RESIDENT_LIST_ITEM_SELECT)
     .eq('care_home_id', careHomeId)
     .is('deleted_at', null)
     .order('status', { ascending: true })
     .order('full_name', { ascending: true })
 
-  if (error) {
-    throw new Error(error.message)
+  if (activeOnly) {
+    query = query.eq('status', 'active')
   }
 
-  return Promise.all((data ?? []).map((row) => mapResidentRowToRecord(supabase, row)))
-}
+  const data = await measureServerStep(
+    activeOnly ? 'supabase:residents:list-items:active' : 'supabase:residents:list-items',
+    async () => {
+      const { data, error } = await query
 
-export async function getActiveCurrentCareHomeResidents(): Promise<ResidentRecord[]> {
-  const { supabase, careHomeId } = await getResidentContext('read')
-  const { data, error } = await supabase
-    .from('residents')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .eq('status', 'active')
-    .is('deleted_at', null)
-    .order('full_name', { ascending: true })
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      return data ?? []
+    },
+    { careHomeId, activeOnly }
+  )
 
-  return Promise.all((data ?? []).map((row) => mapResidentRowToRecord(supabase, row)))
+  return data.map((row) => ({
+    id: row.id,
+    name: row.full_name,
+    status: normalizeResidentStatus(row.status),
+  }))
 }
 
 export async function getRecentCurrentCareHomeResidents(limit = 10): Promise<ResidentActivityRecord[]> {
   const { supabase, careHomeId } = await getResidentContext('read')
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 50) : 10
-  const { data, error } = await supabase
-    .from('residents')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(safeLimit)
+  const data = await measureServerStep(
+    'supabase:residents:recent',
+    async () => {
+      const { data, error } = await supabase
+        .from('residents')
+        .select('id, full_name, status, created_at, updated_at')
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(safeLimit)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map((row) => ({
+      return data ?? []
+    },
+    { careHomeId, limit: safeLimit }
+  )
+
+  return data.map((row) => ({
     id: row.id,
     name: row.full_name,
     status: normalizeResidentStatus(row.status),
@@ -113,7 +198,11 @@ export async function getRecentCurrentCareHomeResidents(limit = 10): Promise<Res
 
 export async function getResidentById(residentId: string): Promise<ResidentRecord | null> {
   const { supabase, careHomeId } = await getResidentContext('read')
-  const resident = await getResidentRowById(supabase, careHomeId, residentId)
+  const resident = await measureServerStep(
+    'supabase:residents:by-id',
+    () => getResidentRowById(supabase, careHomeId, residentId),
+    { careHomeId, residentId }
+  )
 
   return resident ? mapResidentRowToRecord(supabase, resident) : null
 }
@@ -240,12 +329,11 @@ export async function softDeleteResident(residentId: string): Promise<void> {
 
 export async function mapResidentRowToRecord(
   supabase: TypedSupabaseClient,
-  row: ResidentRow
+  row: ResidentRecordRow
 ): Promise<ResidentRecord> {
   return {
     id: row.id,
     name: row.full_name,
-    // The current UI expects a number, so null DB ages are mapped to 0 until the UI is migrated.
     age: typeof row.age === 'number' ? row.age : 0,
     careLevel: row.care_level,
     primarySupportNeeds: parsePrimarySupportNeeds(row.primary_support_needs),
@@ -254,6 +342,29 @@ export async function mapResidentRowToRecord(
     status: normalizeResidentStatus(row.status),
     photoUrl: await getResidentPhotoSignedUrl(supabase, row.photo_path),
   }
+}
+
+async function mapResidentRowsToRecords(
+  supabase: TypedSupabaseClient,
+  rows: ResidentRecordRow[]
+): Promise<ResidentRecord[]> {
+  if (rows.length === 0) {
+    return []
+  }
+
+  const signedUrlByPath = await getResidentPhotoSignedUrls(supabase, rows)
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.full_name,
+    age: typeof row.age === 'number' ? row.age : 0,
+    careLevel: row.care_level,
+    primarySupportNeeds: parsePrimarySupportNeeds(row.primary_support_needs),
+    notes: row.notes ?? '',
+    sex: normalizeResidentSex(row.sex),
+    status: normalizeResidentStatus(row.status),
+    photoUrl: row.photo_path ? signedUrlByPath.get(row.photo_path) ?? null : null,
+  }))
 }
 
 async function getResidentPhotoSignedUrl(
@@ -277,6 +388,61 @@ async function getResidentPhotoSignedUrl(
   }
 
   return data.signedUrl
+}
+
+async function getResidentPhotoSignedUrls(
+  supabase: TypedSupabaseClient,
+  rows: ResidentRecordRow[]
+) {
+  const photoPaths = rows
+    .map((row) => row.photo_path)
+    .filter((photoPath): photoPath is string => typeof photoPath === 'string' && photoPath.length > 0)
+
+  if (photoPaths.length === 0) {
+    return new Map<string, string>()
+  }
+
+  const uniquePhotoPaths = Array.from(new Set(photoPaths))
+
+  try {
+    const signedPaths = await measureServerStep(
+      'supabase:resident-photos:signed-urls',
+      async () => {
+        const { data, error } = await supabase.storage
+          .from(RESIDENT_PHOTOS_BUCKET)
+          .createSignedUrls(uniquePhotoPaths, RESIDENT_PHOTO_SIGNED_URL_TTL_SECONDS)
+
+        if (error) {
+          throw new Error(error.message)
+        }
+
+        return data ?? []
+      },
+      { photoCount: uniquePhotoPaths.length }
+    )
+
+    return new Map(
+      signedPaths.flatMap((entry, index) => {
+        const photoPath = uniquePhotoPaths[index]
+
+        if (!photoPath || !entry?.signedUrl) {
+          return []
+        }
+
+        return [[photoPath, entry.signedUrl] as const]
+      })
+    )
+  } catch (error) {
+    console.error('Failed to batch create resident photo signed URLs, falling back to per-photo signing.', error)
+
+    const signedPairs = await Promise.all(
+      uniquePhotoPaths.map(async (photoPath) => [photoPath, await getResidentPhotoSignedUrl(supabase, photoPath)] as const)
+    )
+
+    return new Map(
+      signedPairs.filter((entry): entry is readonly [string, string] => typeof entry[1] === 'string')
+    )
+  }
 }
 
 async function cleanupStaleResidentPhotoVariants(
@@ -396,7 +562,7 @@ export async function removeResidentPhoto(residentId: string): Promise<ResidentR
 
 async function getResidentContext(requiredAccess: 'read' | 'admin') {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserAccess(supabase)
+  const access = await getCurrentUserServerAccess(supabase)
   const context = getResidentAccessContext(access)
 
   if (requiredAccess === 'admin' && access.role !== 'admin') {
@@ -432,7 +598,7 @@ async function getResidentRowById(
 ) {
   const { data, error } = await supabase
     .from('residents')
-    .select('*')
+    .select(RESIDENT_RECORD_SELECT)
     .eq('care_home_id', careHomeId)
     .eq('id', residentId)
     .is('deleted_at', null)
@@ -442,7 +608,7 @@ async function getResidentRowById(
     throw new Error(error.message)
   }
 
-  return data
+  return data as unknown as ResidentRecordRow | null
 }
 
 function buildResidentUpdatePayload(input: UpdateResidentInput): ResidentUpdate {
@@ -541,3 +707,9 @@ function normalizeResidentStatus(status: string): ResidentStatus {
 function normalizeResidentSex(value: string | null | undefined): ResidentSex {
   return value === 'male' || value === 'female' || value === 'other' ? value : 'unknown'
 }
+
+
+
+
+
+

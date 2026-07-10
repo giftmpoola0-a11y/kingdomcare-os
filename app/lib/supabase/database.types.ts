@@ -599,6 +599,18 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_current_user_access: {
+        Args: never
+        Returns: {
+          care_home_id: string | null
+          care_home_name: string | null
+          email: string | null
+          full_name: string | null
+          membership_id: string | null
+          role: string | null
+          user_id: string | null
+        }[]
+      }
       get_my_care_home_ids: { Args: never; Returns: string[] }
       is_care_home_admin: { Args: { p_care_home_id: string }; Returns: boolean }
       remove_care_home_member: {
@@ -744,4 +756,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
 

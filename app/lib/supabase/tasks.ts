@@ -2,9 +2,11 @@ import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 type TaskRow = Tables<'tasks'>
@@ -65,37 +67,53 @@ export interface UpdateTaskInput {
 
 export async function getCurrentCareHomeTasks(): Promise<TaskRecord[]> {
   const { supabase, careHomeId } = await getTaskContext('read')
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .is('deleted_at', null)
-    .order('due_at', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: false })
+  const data = await measureServerStep(
+    'supabase:tasks:list',
+    async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map((row) => mapTaskRowToRecord(row))
+      return data ?? []
+    },
+    { careHomeId }
+  )
+
+  return data.map((row) => mapTaskRowToRecord(row))
 }
 
 export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
   const { supabase, careHomeId } = await getTaskContext('read')
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .in('status', ['open', 'in_progress'])
-    .is('deleted_at', null)
-    .order('due_at', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: false })
+  const data = await measureServerStep(
+    'supabase:tasks:open',
+    async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('care_home_id', careHomeId)
+        .in('status', ['open', 'in_progress'])
+        .is('deleted_at', null)
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false })
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map((row) => mapTaskRowToRecord(row))
+      return data ?? []
+    },
+    { careHomeId }
+  )
+
+  return data.map((row) => mapTaskRowToRecord(row))
 }
 
 export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
@@ -308,7 +326,7 @@ export function mapTaskRowToRecord(row: TaskRow): TaskRecord {
 
 async function getTaskContext(requiredAccess: 'read' | 'create' | 'manage' | 'status') {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserAccess(supabase)
+  const access = await getCurrentUserServerAccess(supabase)
   const context = getTaskAccessContext(access)
 
   if (requiredAccess === 'create' && access.role !== 'admin' && access.role !== 'nurse') {
@@ -479,3 +497,7 @@ function normalizeTaskCategory(category: string | null | undefined): TaskCategor
     ? (category as TaskCategory)
     : 'Other'
 }
+
+
+
+

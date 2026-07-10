@@ -1,9 +1,11 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCurrentUserAccess, type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 type IncidentRow = Tables<'incidents'>
@@ -77,19 +79,27 @@ const INCIDENT_METADATA_PREFIX = '[[incident_meta]]'
 
 export async function getCurrentCareHomeIncidents(): Promise<IncidentRecord[]> {
   const { supabase, careHomeId } = await getIncidentContext('read')
-  const { data, error } = await supabase
-    .from('incidents')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .is('deleted_at', null)
-    .order('occurred_at', { ascending: false })
-    .order('created_at', { ascending: false })
+  const data = await measureServerStep(
+    'supabase:incidents:list',
+    async () => {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map((row) => mapIncidentRowToRecord(row))
+      return data ?? []
+    },
+    { careHomeId }
+  )
+
+  return data.map((row) => mapIncidentRowToRecord(row))
 }
 
 export async function getOpenCurrentCareHomeIncidents(): Promise<IncidentRecord[]> {
@@ -113,20 +123,28 @@ export async function getOpenCurrentCareHomeIncidents(): Promise<IncidentRecord[
 export async function getRecentCurrentCareHomeIncidents(limit = 10): Promise<IncidentRecord[]> {
   const { supabase, careHomeId } = await getIncidentContext('read')
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 50) : 10
-  const { data, error } = await supabase
-    .from('incidents')
-    .select('*')
-    .eq('care_home_id', careHomeId)
-    .is('deleted_at', null)
-    .order('occurred_at', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(safeLimit)
+  const data = await measureServerStep(
+    'supabase:incidents:recent',
+    async () => {
+      const { data, error } = await supabase
+        .from('incidents')
+        .select('*')
+        .eq('care_home_id', careHomeId)
+        .is('deleted_at', null)
+        .order('occurred_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(safeLimit)
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return (data ?? []).map((row) => mapIncidentRowToRecord(row))
+      return data ?? []
+    },
+    { careHomeId, limit: safeLimit }
+  )
+
+  return data.map((row) => mapIncidentRowToRecord(row))
 }
 
 export async function getCurrentCareHomeIncidentById(incidentId: string): Promise<IncidentRecord | null> {
@@ -335,7 +353,7 @@ export function mapIncidentRowToRecord(row: IncidentRow): IncidentRecord {
 
 async function getIncidentContext(requiredAccess: 'read' | 'write' | 'manage') {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserAccess(supabase)
+  const access = await getCurrentUserServerAccess(supabase)
   const context = getIncidentAccessContext(access)
 
   if (requiredAccess === 'manage' && access.role !== 'admin' && access.role !== 'nurse') {
@@ -548,3 +566,7 @@ function normalizeIncidentSeverity(value: string | null | undefined): IncidentSe
 function normalizeIncidentStatus(value: string | null | undefined): IncidentStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
+
+
+
+
