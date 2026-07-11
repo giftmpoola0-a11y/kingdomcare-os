@@ -6,10 +6,13 @@ import { useFormStatus } from 'react-dom'
 import { ArrowLeft, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { ResidentRecord } from '@/app/lib/supabase/residents'
 import { createIncidentFromFormAction } from './actions'
-import { INITIAL_INCIDENT_CREATE_STATE } from './form-state'
+import { GENERAL_INCIDENT_RESIDENT_VALUE, INITIAL_INCIDENT_CREATE_STATE } from './form-state'
+
+const SELECT_TRIGGER_CLASSES = 'h-11 w-full rounded-xl bg-input/30'
 
 const INCIDENT_TYPES = [
   'Fall',
@@ -124,52 +127,53 @@ export default function NewIncidentClient({
             <form action={formAction} className="mt-6 space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Resident" htmlFor="residentId" error={state.fieldErrors.residentId}>
-                  <select
-                    id="residentId"
-                    name="residentId"
-                    defaultValue=""
-                    className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="">General incident / no resident selected</option>
-                    {activeResidents.map((resident) => (
-                      <option key={resident.id} value={resident.id}>
-                        {resident.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select name="residentId" defaultValue={GENERAL_INCIDENT_RESIDENT_VALUE}>
+                    <SelectTrigger id="residentId" className={SELECT_TRIGGER_CLASSES}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={GENERAL_INCIDENT_RESIDENT_VALUE}>
+                        General incident / no resident selected
+                      </SelectItem>
+                      {activeResidents.map((resident) => (
+                        <SelectItem key={resident.id} value={resident.id}>
+                          {resident.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
 
                 <Field label="Incident type" htmlFor="incidentType" error={state.fieldErrors.incidentType}>
-                  <select
-                    id="incidentType"
-                    name="incidentType"
-                    defaultValue=""
-                    className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <option value="">Select type...</option>
-                    {INCIDENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                  <Select name="incidentType" defaultValue="">
+                    <SelectTrigger id="incidentType" className={SELECT_TRIGGER_CLASSES}>
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INCIDENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Severity" htmlFor="severity" error={state.fieldErrors.severity}>
-                  <select
-                    id="severity"
-                    name="severity"
-                    defaultValue="medium"
-                    className="flex h-11 w-full rounded-xl border border-input bg-input/30 px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    {SEVERITY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Select name="severity" defaultValue="medium">
+                    <SelectTrigger id="severity" className={SELECT_TRIGGER_CLASSES}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEVERITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
 
                 <Field label="Date and time" htmlFor="occurredAt" error={state.fieldErrors.occurredAt}>

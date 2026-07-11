@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createIncident, type IncidentSeverity } from '@/app/lib/supabase/incidents'
-import type { IncidentCreateFormState } from './form-state'
+import { GENERAL_INCIDENT_RESIDENT_VALUE, type IncidentCreateFormState } from './form-state'
 
 const ALLOWED_SEVERITIES = new Set<IncidentSeverity>(['low', 'medium', 'high', 'critical'])
 
@@ -11,7 +11,8 @@ export async function createIncidentFromFormAction(
   _prevState: IncidentCreateFormState,
   formData: FormData
 ): Promise<IncidentCreateFormState> {
-  const residentId = readOptionalText(formData, 'residentId')
+  const residentIdRaw = readOptionalText(formData, 'residentId')
+  const residentId = residentIdRaw === GENERAL_INCIDENT_RESIDENT_VALUE ? null : residentIdRaw
   const incidentType = readRequiredText(formData, 'incidentType')
   const occurredAtRaw = readRequiredText(formData, 'occurredAt')
   const description = readRequiredText(formData, 'description')
