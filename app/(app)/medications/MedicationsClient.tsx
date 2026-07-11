@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
+  BellRing,
   CheckCircle2,
   Pill,
   Trash2,
@@ -15,6 +16,14 @@ import {
   Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  getMedicationAlertUrgency,
+  getMedicationAlertUrgencyRank,
+  MEDICATION_ALERT_URGENCY_BADGE_CLASSES,
+  MEDICATION_ALERT_URGENCY_CARD_CLASSES,
+  MEDICATION_ALERT_URGENCY_LABELS,
+  type MedicationAlertUrgency,
+} from '@/app/lib/medicationReminders'
 import type {
   MedicationRecord,
   MedicationAlertRecord,
@@ -137,11 +146,23 @@ export default function MedicationsClient({
     return initialMedications.filter((m) => m.status !== 'archived')
   }, [medFilter, initialMedications])
 
-  // Filtered alerts
+  // Filtered alerts, surfaced most-urgent first so the list reads like a
+  // real attention queue rather than a plain creation-order log.
   const filteredAlerts = useMemo(() => {
-    if (alertFilter === 'Open') return initialAlerts.filter((a) => a.status === 'open' || a.status === 'reviewing')
-    if (alertFilter === 'Resolved') return initialAlerts.filter((a) => a.status === 'resolved')
-    return initialAlerts.filter((a) => a.status !== 'archived')
+    const base =
+      alertFilter === 'Open'
+        ? initialAlerts.filter((a) => a.status === 'open' || a.status === 'reviewing')
+        : alertFilter === 'Resolved'
+          ? initialAlerts.filter((a) => a.status === 'resolved')
+          : initialAlerts.filter((a) => a.status !== 'archived')
+
+    return [...base].sort((left, right) => {
+      const rankDelta =
+        getMedicationAlertUrgencyRank(getMedicationAlertUrgency(left)) -
+        getMedicationAlertUrgencyRank(getMedicationAlertUrgency(right))
+      if (rankDelta !== 0) return rankDelta
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    })
   }, [alertFilter, initialAlerts])
 
   // Summary counts
@@ -153,6 +174,18 @@ export default function MedicationsClient({
   const pausedOrDiscontinuedCount = initialMedications.filter(
     (m) => m.status === 'paused' || m.status === 'discontinued',
   ).length
+
+  // Real alarm counts, derived from live status/due_at only.
+  const openAlertUrgencies = useMemo(
+    () =>
+      initialAlerts
+        .filter((a) => a.status === 'open' || a.status === 'reviewing')
+        .map((a) => getMedicationAlertUrgency(a)),
+    [initialAlerts],
+  )
+  const overdueAlertsCount = openAlertUrgencies.filter((u) => u === 'overdue').length
+  const dueSoonAlertsCount = openAlertUrgencies.filter((u) => u === 'due_soon').length
+  const needsReviewAlertsCount = openAlertUrgencies.filter((u) => u === 'needs_review').length
 
   const hasMedicationDetails = Boolean(
     medForm.endDate || medForm.prescribingDoctor || medForm.scheduleNotes,
@@ -299,6 +332,12 @@ export default function MedicationsClient({
               <SummaryCard label="Paused / discontinued" value={pausedOrDiscontinuedCount} tone="gray" Icon={PauseCircle} />
             </div>
           </section>
+
+          <AttentionBanner
+            overdueCount={overdueAlertsCount}
+            dueSoonCount={dueSoonAlertsCount}
+            needsReviewCount={needsReviewAlertsCount}
+          />
 
           {(loadError || actionError) && (
             <p
@@ -576,9 +615,9 @@ export default function MedicationsClient({
                         <AlertTriangle className="size-5" />
                       </span>
                       <div>
-                        <h2 className="text-xl font-semibold tracking-tight text-foreground">Log Alert</h2>
+                        <h2 className="text-xl font-semibold tracking-tight text-foreground">Log Alert / Reminder</h2>
                         <p className="text-sm text-muted-foreground">
-                          Keep alert logging close by without leaving the full form open all the time.
+                          Set a due time to create a live reminder, or leave it blank for a standing alert.
                         </p>
                       </div>
                     </div>
@@ -682,8 +721,12 @@ export default function MedicationsClient({
                       </div>
                       <div className="space-y-1.5">
                         <label htmlFor="alertDue" className="block text-sm font-semibold text-foreground">
-                          Due at
+                          Reminder due at
                         </label>
+                        <p className="text-xs text-muted-foreground">
+                          Once this time passes, the alert shows as overdue on this page, the dashboard, and the
+                          notification bell.
+                        </p>
                         <input
                           id="alertDue"
                           type="datetime-local"
@@ -803,6 +846,61 @@ function SummaryCard({
         </div>
       </div>
     </div>
+  )
+}
+
+function AttentionBanner({
+  overdueCount,
+  dueSoonCount,
+  needsReviewCount,
+}: {
+  overdueCount: number
+  dueSoonCount: number
+  needsReviewCount: number
+}) {
+  const totalCount = overdueCount + dueSoonCount + needsReviewCount
+
+  if (totalCount === 0) {
+    return null
+  }
+
+  const isOverdue = overdueCount > 0
+  const parts = [
+    overdueCount > 0 ? `${overdueCount} overdue` : null,
+    dueSoonCount > 0 ? `${dueSoonCount} due soon` : null,
+    needsReviewCount > 0 ? `${needsReviewCount} needs review` : null,
+  ].filter(Boolean)
+
+  return (
+    <section
+      role="alert"
+      className={cn(
+        'mt-4 flex items-start gap-3 rounded-2xl border p-4 shadow-sm sm:items-center sm:p-5',
+        isOverdue
+          ? 'border-rose-400/30 bg-rose-500/10'
+          : 'border-amber-400/30 bg-amber-500/10',
+      )}
+    >
+      <span
+        className={cn(
+          'flex size-10 shrink-0 items-center justify-center rounded-xl ring-1',
+          isOverdue
+            ? 'bg-rose-500/15 text-rose-300 ring-rose-400/35 animate-pulse'
+            : 'bg-amber-500/15 text-amber-300 ring-amber-400/35',
+        )}
+        aria-hidden="true"
+      >
+        <BellRing className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <p className={cn('text-sm font-semibold', isOverdue ? 'text-rose-200' : 'text-amber-200')}>
+          {totalCount} medication alert{totalCount === 1 ? '' : 's'} need attention
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {parts.join(' | ')} - review the list below to acknowledge or resolve.
+        </p>
+      </div>
+    </section>
   )
 }
 
@@ -1035,22 +1133,16 @@ function AlertCard({
 }: AlertCardProps) {
   const isOpen = alert.status === 'open' || alert.status === 'reviewing'
   const isResolved = alert.status === 'resolved'
-
-  const rowClass = isResolved
-    ? 'border-emerald-400/20 bg-emerald-500/8'
-    : isOpen
-      ? alert.severity === 'critical' || alert.severity === 'high'
-        ? 'border-rose-400/20 bg-rose-500/8'
-        : 'border-amber-400/20 bg-amber-500/8'
-      : 'border-border bg-background/60'
+  const urgency = getMedicationAlertUrgency(alert)
+  const rowClass = MEDICATION_ALERT_URGENCY_CARD_CLASSES[urgency]
 
   return (
     <article className={cn('rounded-2xl border p-4 transition-colors', rowClass)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
+          <UrgencyBadge urgency={urgency} />
           <AlertTypeBadge type={alert.alertType} />
           <AlertSeverityBadge severity={alert.severity} />
-          <AlertStatusBadge status={alert.status} />
         </div>
         <p className="text-xs text-muted-foreground">
           {alert.dueAt ? `Due ${formatDateTime(alert.dueAt)}` : `Logged ${formatDateTime(alert.createdAt)}`}
@@ -1064,7 +1156,7 @@ function AlertCard({
         <MetadataItem label="Medication" value={medicationName ?? 'Not linked'} />
         <MetadataItem label="Logged" value={formatDateTime(alert.createdAt)} />
         <MetadataItem label="Due" value={alert.dueAt ? formatDateTime(alert.dueAt) : 'No due time'} />
-        <MetadataItem label="Resolved" value={alert.resolvedAt ? formatDateTime(alert.resolvedAt) : 'Not resolved'} />
+        <MetadataItem label="Acknowledged" value={alert.resolvedAt ? formatDateTime(alert.resolvedAt) : 'Not yet'} />
         <MetadataItem label="Updated" value={formatDateTime(alert.updatedAt)} />
       </div>
 
@@ -1072,7 +1164,7 @@ function AlertCard({
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
           {isOpen && (
             <ActionButton
-              label="Resolve"
+              label="Acknowledge"
               tone="green"
               Icon={CheckCircle2}
               disabled={isPending}
@@ -1139,22 +1231,15 @@ function AlertSeverityBadge({ severity }: { severity: MedicationAlertSeverity })
   )
 }
 
-function AlertStatusBadge({ status }: { status: MedicationAlertRecord['status'] }) {
-  const map: Record<MedicationAlertRecord['status'], string> = {
-    open: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35',
-    reviewing: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/35',
-    resolved: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/35',
-    archived: 'bg-zinc-500/15 text-zinc-300 ring-1 ring-zinc-400/25',
-  }
-  const labels: Record<MedicationAlertRecord['status'], string> = {
-    open: 'Open',
-    reviewing: 'Reviewing',
-    resolved: 'Resolved',
-    archived: 'Archived',
-  }
+function UrgencyBadge({ urgency }: { urgency: MedicationAlertUrgency }) {
   return (
-    <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', map[status])}>
-      {labels[status]}
+    <span
+      className={cn(
+        'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+        MEDICATION_ALERT_URGENCY_BADGE_CLASSES[urgency],
+      )}
+    >
+      {MEDICATION_ALERT_URGENCY_LABELS[urgency]}
     </span>
   )
 }

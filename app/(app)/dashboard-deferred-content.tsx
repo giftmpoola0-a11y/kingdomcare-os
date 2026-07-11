@@ -39,7 +39,7 @@ export function DashboardDeferredContent({
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="flex flex-col gap-6 lg:col-span-2">
         <Suspense fallback={<DashboardOperationalFallback />}>
-          <DashboardOperationalSection careHomeId={careHomeId} />
+          <DashboardOperationalSection careHomeId={careHomeId} role={role} />
         </Suspense>
       </div>
 
@@ -48,7 +48,7 @@ export function DashboardDeferredContent({
           <DashboardRecentShiftReportsSection careHomeId={careHomeId} />
         </Suspense>
         <Suspense fallback={<DashboardCardFallback title="Recent activity" description="Loading the latest live updates from your care home." />}>
-          <DashboardRecentActivitySection careHomeId={careHomeId} />
+          <DashboardRecentActivitySection careHomeId={careHomeId} role={role} />
         </Suspense>
         <Suspense fallback={<DashboardCardFallback title="Care Team" description="Loading current care team members." />}>
           <DashboardCareTeamSection careHomeId={careHomeId} role={role} />
@@ -58,20 +58,21 @@ export function DashboardDeferredContent({
   )
 }
 
-async function DashboardOperationalSection({ careHomeId }: { careHomeId: string }) {
+async function DashboardOperationalSection({ careHomeId, role }: { careHomeId: string; role: MembershipRole }) {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
+  const canSeeMedications = role === 'admin' || role === 'nurse'
   const [openTasks, openIncidents, openMedicationAlerts] = await measureServerStep(
     'dashboard:operational-section',
     async () => {
       const [openTasksData, openIncidentsData, openMedicationAlertsData] = await Promise.all([
         loadOpenTasks(supabase, careHomeId),
         loadOpenIncidents(supabase, careHomeId),
-        loadOpenMedicationAlerts(supabase, careHomeId),
+        canSeeMedications ? loadOpenMedicationAlerts(supabase, careHomeId) : Promise.resolve([]),
       ])
 
       return [openTasksData, openIncidentsData, openMedicationAlertsData] as const
     },
-    { careHomeId }
+    { careHomeId, role }
   )
 
   const residentNameById = await loadResidentNameMap(supabase, careHomeId, [
@@ -113,8 +114,9 @@ async function DashboardRecentShiftReportsSection({ careHomeId }: { careHomeId: 
   return <RecentShiftReports reports={recentShiftReports} />
 }
 
-async function DashboardRecentActivitySection({ careHomeId }: { careHomeId: string }) {
+async function DashboardRecentActivitySection({ careHomeId, role }: { careHomeId: string; role: MembershipRole }) {
   const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
+  const canSeeMedications = role === 'admin' || role === 'nurse'
   const [recentResidents, recentTasks, recentIncidents, recentShiftReports, recentMedications, recentMedicationAlerts] =
     await measureServerStep(
       'dashboard:recent-activity-section',
@@ -124,8 +126,8 @@ async function DashboardRecentActivitySection({ careHomeId }: { careHomeId: stri
           loadRecentTasks(supabase, careHomeId),
           loadRecentIncidents(supabase, careHomeId),
           loadRecentShiftReports(supabase, careHomeId),
-          loadRecentMedications(supabase, careHomeId),
-          loadRecentMedicationAlerts(supabase, careHomeId),
+          canSeeMedications ? loadRecentMedications(supabase, careHomeId) : Promise.resolve([]),
+          canSeeMedications ? loadRecentMedicationAlerts(supabase, careHomeId) : Promise.resolve([]),
         ])
 
         return [
@@ -137,7 +139,7 @@ async function DashboardRecentActivitySection({ careHomeId }: { careHomeId: stri
           recentMedicationAlertsData,
         ] as const
       },
-      { careHomeId }
+      { careHomeId, role }
     )
 
   const residentNameById = await loadResidentNameMap(supabase, careHomeId, [

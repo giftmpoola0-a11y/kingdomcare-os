@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Fraunces, Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
-import MedicationReminderWatcher from '@/app/components/MedicationReminderWatcher'
 import { cn } from '@/lib/utils'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -47,7 +46,6 @@ export default function RootLayout({
     >
       <body className="min-h-full font-sans">
         {children}
-        <MedicationReminderWatcher />
       </body>
     </html>
   )

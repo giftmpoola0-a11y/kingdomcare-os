@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
 import {
@@ -10,6 +11,13 @@ import MedicationsClient from './MedicationsClient'
 
 export default async function MedicationsPage() {
   const { access } = await getAuthenticatedAppContext()
+
+  // Medications are hidden from caregivers entirely (nav already excludes
+  // this route) - block direct URL access too, consistent with that
+  // product decision.
+  if (access.role === 'caregiver') {
+    redirect('/staff')
+  }
 
   let medications: MedicationRecord[] = []
   let alerts: MedicationAlertRecord[] = []
