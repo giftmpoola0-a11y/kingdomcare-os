@@ -220,6 +220,7 @@ export default function NewIncidentClient({
                   rows={3}
                   value={whoNotified}
                   onChange={(event) => setWhoNotified(event.target.value)}
+                  placeholder="e.g. Nurse and supervisor notified by phone at 3:15 PM"
                   className="min-h-24 rounded-xl bg-input/30"
                 />
                 <ChipRow chips={WHO_NOTIFIED_CHIPS} onSelect={(chip) => appendChip('whoNotified', chip)} />
@@ -232,6 +233,7 @@ export default function NewIncidentClient({
                   rows={3}
                   value={followUpNotes}
                   onChange={(event) => setFollowUpNotes(event.target.value)}
+                  placeholder="e.g. Monitor resident overnight and update the care plan"
                   className="min-h-24 rounded-xl bg-input/30"
                 />
                 <ChipRow chips={FOLLOW_UP_CHIPS} onSelect={(chip) => appendChip('followUpNotes', chip)} />

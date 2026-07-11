@@ -154,6 +154,57 @@ export async function getCurrentCareHomeIncidentById(incidentId: string): Promis
   return incident ? mapIncidentRowToRecord(incident) : null
 }
 
+/**
+ * Resolves incident `created_by`/`reported_by` user ids to a display name,
+ * without granting broader profile access than RLS already allows: the
+ * viewer's own name comes from their own session, admins/nurses can resolve
+ * care-team names via the existing admin-only staff RPC, and anything else
+ * that can't be safely resolved falls back to a generic label instead of a
+ * raw uuid.
+ */
+export async function getIncidentReporterNames(
+  incidents: IncidentRecord[]
+): Promise<Map<string, string>> {
+  const reporterIds = new Set<string>()
+
+  for (const incident of incidents) {
+    if (incident.createdBy) reporterIds.add(incident.createdBy)
+    if (incident.reportedBy) reporterIds.add(incident.reportedBy)
+  }
+
+  const nameById = new Map<string, string>()
+
+  if (reporterIds.size === 0) {
+    return nameById
+  }
+
+  const { supabase, access, careHomeId, userId } = await getIncidentContext('read')
+
+  if (reporterIds.has(userId)) {
+    nameById.set(userId, access.profile?.fullName?.trim() || access.profile?.email?.trim() || 'You')
+  }
+
+  if (access.role === 'admin' || access.role === 'nurse') {
+    const { data, error } = await supabase.rpc('get_care_home_staff', {
+      p_care_home_id: careHomeId,
+    })
+
+    if (!error && Array.isArray(data)) {
+      for (const member of data) {
+        if (!reporterIds.has(member.user_id)) {
+          continue
+        }
+
+        const fullName = member.full_name?.trim()
+        const email = member.email?.trim()
+        nameById.set(member.user_id, fullName || email || nameById.get(member.user_id) || 'Care team member')
+      }
+    }
+  }
+
+  return nameById
+}
+
 export async function createIncident(input: CreateIncidentInput): Promise<IncidentRecord> {
   const { supabase, careHomeId, userId } = await getIncidentContext('write')
   const residentId = normalizeOptionalText(input.residentId)

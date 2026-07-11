@@ -20,11 +20,15 @@ import { cn } from '@/lib/utils'
 export interface IncidentDetailClientProps {
   incident: IncidentRecord
   residentName: string
+  createdByName: string
+  reportedByName: string
 }
 
 export default function IncidentDetailClient({
   incident,
   residentName,
+  createdByName,
+  reportedByName,
 }: IncidentDetailClientProps) {
 
   return (
@@ -118,8 +122,8 @@ export default function IncidentDetailClient({
                   <MiniField label="Created" value={formatDateTime(incident.createdAt)} />
                   <MiniField label="Updated" value={formatDateTime(incident.updatedAt)} />
                   <MiniField label="Resolved" value={incident.resolvedAt ? formatDateTime(incident.resolvedAt) : 'Not resolved'} />
-                  <MiniField label="Created by" value={incident.createdBy || 'Not recorded'} monospace={Boolean(incident.createdBy)} />
-                  <MiniField label="Reported by" value={incident.reportedBy || 'Not recorded'} monospace={Boolean(incident.reportedBy)} />
+                  <MiniField label="Created by" value={createdByName} />
+                  <MiniField label="Reported by" value={reportedByName} />
                 </div>
               </DetailSection>
             </div>
