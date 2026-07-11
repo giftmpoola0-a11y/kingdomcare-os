@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
+import { MedicationAlarm } from '@/components/kingdomos-v0/medication-alarm'
 import type { AppChromeProps } from '@/app/lib/app-chrome'
 import { EMPTY_SIDEBAR_BADGE_COUNTS, type SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 
@@ -106,6 +107,7 @@ export function AuthenticatedAppShell({
           {children}
         </div>
       </div>
+      <MedicationAlarm role={role} />
     </AuthenticatedAppChromeContext.Provider>
   )
 }

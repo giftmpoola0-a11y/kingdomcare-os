@@ -16,6 +16,17 @@ import {
   Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { dashboardFont } from '@/app/lib/dashboard-font'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   getMedicationAlertUrgency,
   getMedicationAlertUrgencyRank,
@@ -75,6 +86,17 @@ const INPUT_CLASS =
 const TEXTAREA_CLASS =
   'w-full rounded-xl border border-border bg-background/70 px-4 py-3.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-emerald-400/50 focus:outline-none focus:ring-2 focus:ring-emerald-400/15 resize-none'
 
+interface PendingConfirmation {
+  tone: 'rose' | 'neutral'
+  badgeLabel: string
+  title: string
+  description: string
+  itemLabel: string
+  confirmLabel: string
+  pendingLabel: string
+  action: () => Promise<{ success: boolean; error?: string }>
+}
+
 
 export interface MedicationsClientProps {
   initialMedications: MedicationRecord[]
@@ -97,6 +119,7 @@ export default function MedicationsClient({
   const [actionError, setActionError] = useState('')
   const [medDetailsOpen, setMedDetailsOpen] = useState(false)
   const [alertComposerOpen, setAlertComposerOpen] = useState(false)
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null)
 
   // Medication list filter
   const [medFilter, setMedFilter] = useState<MedFilter>('Active')
@@ -206,14 +229,35 @@ export default function MedicationsClient({
   ) {
     setActionError('')
     startTransition(async () => {
-      const result = await actionFn()
-      if (!result.success) {
-        setActionError((result as { success: false; error: string }).error)
-        return
+      try {
+        const result = await actionFn()
+        if (!result.success) {
+          setActionError((result as { success: false; error: string }).error)
+          return
+        }
+        onSuccess?.()
+        router.refresh()
+      } catch {
+        // An uncaught rejection here would leave isPending stuck true,
+        // permanently disabling every action button on the page.
+        setActionError('Something went wrong. Please try again.')
       }
-      onSuccess?.()
-      router.refresh()
     })
+  }
+
+  function requestConfirmation(confirmation: PendingConfirmation) {
+    setActionError('')
+    setPendingConfirmation(confirmation)
+  }
+
+  function handleConfirmationConfirm() {
+    if (!pendingConfirmation) return
+    run(pendingConfirmation.action, () => setPendingConfirmation(null))
+  }
+
+  function handleConfirmationOpenChange(open: boolean) {
+    if (open || isPending) return
+    setPendingConfirmation(null)
   }
 
 
@@ -579,26 +623,61 @@ export default function MedicationsClient({
                   <EmptyState message={`No ${medFilter.toLowerCase()} medications recorded yet.`} />
                 ) : (
                   <div className="space-y-3">
-                    {filteredMeds.map((med) => (
-                      <MedicationCard
-                        key={med.id}
-                        med={med}
-                        residentName={residentNameMap.get(med.residentId) ?? 'Unknown resident'}
-                        canManage={canManage}
-                        isPending={isPending}
-                        onResume={(id) => run(() => resumeMedicationAction(id))}
-                        onPause={(id) => run(() => pauseMedicationAction(id))}
-                        onDiscontinue={(id) => {
-                          if (!window.confirm('Mark this medication as discontinued?')) return
-                          run(() => discontinueMedicationAction(id))
-                        }}
-                        onArchive={(id) => run(() => archiveMedicationAction(id))}
-                        onDelete={(id) => {
-                          if (!window.confirm('Permanently delete this medication record?')) return
-                          run(() => deleteMedicationAction(id))
-                        }}
-                      />
-                    ))}
+                    {filteredMeds.map((med) => {
+                      const medResidentName = residentNameMap.get(med.residentId) ?? 'Unknown resident'
+                      const medItemLabel = `${med.medicationName} - ${medResidentName}`
+
+                      return (
+                        <MedicationCard
+                          key={med.id}
+                          med={med}
+                          residentName={medResidentName}
+                          canManage={canManage}
+                          isPending={isPending}
+                          onResume={(id) => run(() => resumeMedicationAction(id))}
+                          onPause={(id) => run(() => pauseMedicationAction(id))}
+                          onDiscontinue={(id) =>
+                            requestConfirmation({
+                              tone: 'rose',
+                              badgeLabel: 'Discontinue medication',
+                              title: 'Discontinue medication?',
+                              description:
+                                'This marks the medication as discontinued for this resident. It stays visible under the Discontinued filter so the care team keeps a record.',
+                              itemLabel: medItemLabel,
+                              confirmLabel: 'Discontinue',
+                              pendingLabel: 'Discontinuing...',
+                              action: () => discontinueMedicationAction(id),
+                            })
+                          }
+                          onArchive={(id) =>
+                            requestConfirmation({
+                              tone: 'neutral',
+                              badgeLabel: 'Archive medication',
+                              title: 'Archive medication?',
+                              description:
+                                'Archived medications are removed from the active filters but stay available under All for historical reference.',
+                              itemLabel: medItemLabel,
+                              confirmLabel: 'Archive medication',
+                              pendingLabel: 'Archiving...',
+                              action: () => archiveMedicationAction(id),
+                            })
+                          }
+                          onDelete={(id) =>
+                            requestConfirmation({
+                              tone: 'rose',
+                              badgeLabel: 'Delete medication',
+                              title: 'Delete medication permanently?',
+                              description:
+                                'This removes the medication from every view for your care home. This cannot be undone from the app.',
+                              itemLabel: medItemLabel,
+                              confirmLabel: 'Delete permanently',
+                              pendingLabel: 'Deleting...',
+                              action: () => deleteMedicationAction(id),
+                            })
+                          }
+                        />
+                      )
+                    })}
                   </div>
                 )}
               </section>
@@ -788,29 +867,120 @@ export default function MedicationsClient({
                   <EmptyState message={`No ${alertFilter.toLowerCase()} medication alerts.`} />
                 ) : (
                   <div className="space-y-3">
-                    {filteredAlerts.map((alert) => (
-                      <AlertCard
-                        key={alert.id}
-                        alert={alert}
-                        residentName={alert.residentId ? (residentNameMap.get(alert.residentId) ?? null) : null}
-                        medicationName={
-                          alert.medicationId ? (medicationNameMap.get(alert.medicationId) ?? null) : null
-                        }
-                        canManage={canManage}
-                        isPending={isPending}
-                        onResolve={(id) => run(() => resolveMedicationAlertAction(id))}
-                        onArchive={(id) => run(() => archiveMedicationAlertAction(id))}
-                        onDelete={(id) => {
-                          if (!window.confirm('Delete this alert?')) return
-                          run(() => deleteMedicationAlertAction(id))
-                        }}
-                      />
-                    ))}
+                    {filteredAlerts.map((alert) => {
+                      const alertResidentName = alert.residentId ? (residentNameMap.get(alert.residentId) ?? null) : null
+                      const alertMedicationName = alert.medicationId
+                        ? (medicationNameMap.get(alert.medicationId) ?? null)
+                        : null
+                      const alertItemLabel = [alertMedicationName, alertResidentName].filter(Boolean).join(' - ') || alert.message
+
+                      return (
+                        <AlertCard
+                          key={alert.id}
+                          alert={alert}
+                          residentName={alertResidentName}
+                          medicationName={alertMedicationName}
+                          canManage={canManage}
+                          isPending={isPending}
+                          onResolve={(id) => run(() => resolveMedicationAlertAction(id))}
+                          onArchive={(id) =>
+                            requestConfirmation({
+                              tone: 'neutral',
+                              badgeLabel: 'Archive alert',
+                              title: 'Archive alert?',
+                              description:
+                                'Archived alerts are removed from the active filters but stay available under All for historical reference.',
+                              itemLabel: alertItemLabel,
+                              confirmLabel: 'Archive alert',
+                              pendingLabel: 'Archiving...',
+                              action: () => archiveMedicationAlertAction(id),
+                            })
+                          }
+                          onDelete={(id) =>
+                            requestConfirmation({
+                              tone: 'rose',
+                              badgeLabel: 'Delete alert',
+                              title: 'Delete alert permanently?',
+                              description:
+                                'This removes the alert from every view for your care home. This cannot be undone from the app.',
+                              itemLabel: alertItemLabel,
+                              confirmLabel: 'Delete permanently',
+                              pendingLabel: 'Deleting...',
+                              action: () => deleteMedicationAlertAction(id),
+                            })
+                          }
+                        />
+                      )
+                    })}
                   </div>
                 )}
               </section>
             </div>
           </div>
+
+          <AlertDialog open={pendingConfirmation !== null} onOpenChange={handleConfirmationOpenChange}>
+            <AlertDialogContent
+              className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+            >
+              <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+                <div
+                  className={cn(
+                    'inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] ring-1',
+                    pendingConfirmation?.tone === 'rose'
+                      ? 'bg-rose-500/12 text-rose-200 ring-rose-400/25'
+                      : 'bg-amber-500/12 text-amber-200 ring-amber-400/25',
+                  )}
+                >
+                  <Trash2 className="size-3.5" />
+                  {pendingConfirmation?.badgeLabel}
+                </div>
+                <AlertDialogTitle className="text-2xl tracking-tight text-foreground">
+                  {pendingConfirmation?.title}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                  <span className="block">{pendingConfirmation?.description}</span>
+                  <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    {pendingConfirmation?.itemLabel}
+                  </span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+                {actionError && (
+                  <p
+                    role="alert"
+                    className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
+                  >
+                    {actionError}
+                  </p>
+                )}
+
+                <AlertDialogFooter className={cn(actionError && 'mt-4')}>
+                  <AlertDialogCancel
+                    disabled={isPending}
+                    className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={isPending}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      handleConfirmationConfirm()
+                    }}
+                    className={cn(
+                      'rounded-xl border px-5 py-2.5 text-sm font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      pendingConfirmation?.tone === 'rose'
+                        ? 'border-rose-400/30 bg-rose-500/18 text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] hover:bg-rose-500/28'
+                        : 'border-amber-400/30 bg-amber-500/18 text-amber-100 hover:bg-amber-500/28',
+                    )}
+                  >
+                    {isPending ? pendingConfirmation?.pendingLabel : pendingConfirmation?.confirmLabel}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
     </main>
   )
 }
