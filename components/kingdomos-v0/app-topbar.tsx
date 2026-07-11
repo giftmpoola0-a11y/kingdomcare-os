@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Bell, CheckCheck, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +38,9 @@ interface AlertItem {
 
 interface AlertsPayload {
   totalCount: number
+  attentionCount: number
   unreadCount: number
+  badgeCount: number
   items: AlertItem[]
 }
 
@@ -59,14 +62,18 @@ const SEARCH_INPUT_CLASSES =
 
 const EMPTY_ALERTS_PAYLOAD: AlertsPayload = {
   totalCount: 0,
+  attentionCount: 0,
   unreadCount: 0,
+  badgeCount: 0,
   items: [],
 }
 
 export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTopbarProps) {
+  const pathname = usePathname()
   const alertsPanelRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const alertsFetchingRef = useRef(false)
+  const isFirstPathnameRef = useRef(true)
   const roleLabel = formatRoleLabel(role)
   const badgeLabel = role ? roleLabel : 'Workspace'
   const secondaryLabel = formatSecondaryLabel(role)
@@ -168,6 +175,44 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
 
     return () => controller.abort()
   }, [alertsOpen])
+
+  useEffect(() => {
+    // Skip the initial run - the mount effect above already covers it, and
+    // this effect exists purely to catch up on route changes afterward
+    // (e.g. landing on a new incident's detail page right after creating
+    // it), so the badge doesn't require opening the bell to go stale-safe.
+    if (isFirstPathnameRef.current) {
+      isFirstPathnameRef.current = false
+      return
+    }
+
+    if (alertsFetchingRef.current) {
+      return
+    }
+
+    const controller = new AbortController()
+    void loadAlerts(controller.signal)
+
+    return () => controller.abort()
+  }, [pathname])
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible' || alertsFetchingRef.current) {
+        return
+      }
+
+      void loadAlerts()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleVisibilityChange)
+    }
+  }, [])
 
   useEffect(() => {
     if (!alertsOpen) {
@@ -363,19 +408,19 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
               onClick={handleAlertsToggle}
               className="relative rounded-xl border border-border bg-card p-2.5 text-foreground transition-colors hover:bg-accent"
               aria-label={
-                alertsData.unreadCount > 0
-                  ? `Notifications, ${alertsData.unreadCount} unchecked`
+                alertsData.badgeCount > 0
+                  ? `Notifications, ${alertsData.badgeCount} need attention`
                   : 'Notifications'
               }
               aria-expanded={alertsOpen}
             >
               <Bell className="size-[18px]" />
-              {alertsData.unreadCount > 0 ? (
+              {alertsData.badgeCount > 0 ? (
                 <span
                   className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-semibold leading-none text-white ring-2 ring-card"
                   aria-hidden="true"
                 >
-                  {alertsData.unreadCount > 9 ? '9+' : alertsData.unreadCount}
+                  {alertsData.badgeCount > 9 ? '9+' : alertsData.badgeCount}
                 </span>
               ) : null}
             </button>
@@ -387,9 +432,7 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                     <div>
                       <p className="text-sm font-semibold tracking-tight text-foreground">Notifications</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {alertsData.unreadCount > 0
-                          ? `${alertsData.unreadCount} unchecked resident updates.`
-                          : 'Resident updates and active operational alerts.'}
+                        {formatNotificationsSummary(alertsData.attentionCount, alertsData.unreadCount)}
                       </p>
                     </div>
                     <button
@@ -427,7 +470,7 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                       {operationalAlerts.length > 0 ? (
                         <div>
                           <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                            Operational alerts
+                            Needs attention
                           </p>
                           <div className="space-y-2">
                             {operationalAlerts.map((alert) => (
@@ -461,7 +504,7 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
                       {residentAlerts.length > 0 ? (
                         <div>
                           <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                            Resident updates
+                            New residents
                           </p>
                           <div className="space-y-2">
                             {residentAlerts.map((resident) => (
@@ -609,10 +652,33 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
   )
 }
 
+function formatNotificationsSummary(attentionCount: number, unreadCount: number) {
+  const parts: string[] = []
+
+  if (attentionCount > 0) {
+    parts.push(`${attentionCount} item${attentionCount === 1 ? '' : 's'} need attention`)
+  }
+
+  if (unreadCount > 0) {
+    parts.push(`${unreadCount} new resident update${unreadCount === 1 ? '' : 's'}`)
+  }
+
+  if (parts.length === 0) {
+    return 'No active alerts or new resident updates.'
+  }
+
+  return `${parts.join(' and ')}.`
+}
+
 function normalizeAlertsPayload(payload: Partial<AlertsPayload> | null | undefined): AlertsPayload {
+  const attentionCount = typeof payload?.attentionCount === 'number' ? payload.attentionCount : 0
+  const unreadCount = typeof payload?.unreadCount === 'number' ? payload.unreadCount : 0
+
   return {
     totalCount: typeof payload?.totalCount === 'number' ? payload.totalCount : 0,
-    unreadCount: typeof payload?.unreadCount === 'number' ? payload.unreadCount : 0,
+    attentionCount,
+    unreadCount,
+    badgeCount: typeof payload?.badgeCount === 'number' ? payload.badgeCount : attentionCount + unreadCount,
     items: Array.isArray(payload?.items) ? payload.items : [],
   }
 }

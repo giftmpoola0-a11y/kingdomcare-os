@@ -33,7 +33,12 @@ interface TopbarNotificationItem {
 
 interface AlertsPayload {
   totalCount: number
+  /** Count of open incidents + overdue tasks + medication alerts (role-gated). */
+  attentionCount: number
+  /** Count of unchecked resident-addition notifications only. */
   unreadCount: number
+  /** attentionCount + unreadCount - what the bell badge number should show. */
+  badgeCount: number
   items: TopbarNotificationItem[]
 }
 
@@ -169,27 +174,73 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
     ? getRecentResidentAdditions(supabase, access)
     : Promise.resolve([])
 
+  // Exact counts for the badge number - queried separately from the
+  // display lists above because those lists are capped at TOTAL_LIMIT and
+  // would silently undercount the badge once a care home has more than a
+  // handful of active operational items.
+  const overdueTasksCountPromise = taskAlertsEnabled
+    ? supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('care_home_id', access.careHomeId!)
+        .is('deleted_at', null)
+        .in('status', ['open', 'in_progress'])
+        .lt('due_at', nowIso)
+    : Promise.resolve({ count: 0, error: null })
+
+  const openIncidentsCountPromise = incidentAlertsEnabled
+    ? supabase
+        .from('incidents')
+        .select('id', { count: 'exact', head: true })
+        .eq('care_home_id', access.careHomeId!)
+        .is('deleted_at', null)
+        .in('status', ['open', 'reviewing'])
+    : Promise.resolve({ count: 0, error: null })
+
+  const medicationAlertsCountPromise = medicationAlertsEnabled
+    ? supabase
+        .from('medication_alerts')
+        .select('id', { count: 'exact', head: true })
+        .eq('care_home_id', access.careHomeId!)
+        .is('deleted_at', null)
+        .in('status', ['open', 'reviewing'])
+    : Promise.resolve({ count: 0, error: null })
+
   const [
     overdueTasksResponse,
     openIncidentsResponse,
     medicationAlertsResponse,
     recentResidentAdditions,
+    overdueTasksCountResponse,
+    openIncidentsCountResponse,
+    medicationAlertsCountResponse,
   ] = await Promise.all([
     overdueTasksPromise,
     openIncidentsPromise,
     medicationAlertsPromise,
     recentResidentAdditionsPromise,
+    overdueTasksCountPromise,
+    openIncidentsCountPromise,
+    medicationAlertsCountPromise,
   ])
 
   const firstError = [
     overdueTasksResponse.error,
     openIncidentsResponse.error,
     medicationAlertsResponse.error,
+    overdueTasksCountResponse.error,
+    openIncidentsCountResponse.error,
+    medicationAlertsCountResponse.error,
   ].find(Boolean)
 
   if (firstError) {
     throw new Error(firstError.message)
   }
+
+  const attentionCount =
+    (overdueTasksCountResponse.count ?? 0) +
+    (openIncidentsCountResponse.count ?? 0) +
+    (medicationAlertsCountResponse.count ?? 0)
 
   const residentIds = new Set<string>()
   for (const record of [
@@ -291,10 +342,13 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
   })
 
   const items = [...operationalItems, ...residentItems]
+  const unreadCount = residentItems.filter((item) => !item.checked).length
 
   return {
     totalCount: items.length,
-    unreadCount: residentItems.filter((item) => !item.checked).length,
+    attentionCount,
+    unreadCount,
+    badgeCount: attentionCount + unreadCount,
     items,
   }
 }
