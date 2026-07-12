@@ -37,6 +37,12 @@ test.describe.serial('nurse role access', () => {
       await expect(page).toHaveURL(/\/tasks$/)
       await expect(page.getByRole('heading', { name: /daily tasks/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /create task/i }).first()).toBeVisible()
+
+      await page.goto(`${BASE}/medications`, { waitUntil: 'load' })
+      await expect(page).toHaveURL(/\/medications$/)
+      await expect(page.getByRole('heading', { name: /medication management/i })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /add medication/i })).toBeVisible()
+      await expect(page.getByText(/Only care home admins and nurses can manage medications\./i)).toHaveCount(0)
     } catch (error) {
       diagnostics.push(`failure url: ${page.url()}`)
       diagnostics.push(`body excerpt: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 1000).replace(/\s+/g, ' ').trim()}`)

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
+import { canManageMedicationsRole, getMembershipRoleFromAccess } from '@/app/lib/supabase/access'
 import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
 import {
   getCurrentCareHomeMedications,
@@ -11,11 +12,13 @@ import MedicationsClient from './MedicationsClient'
 
 export default async function MedicationsPage() {
   const { access } = await getAuthenticatedAppContext()
+  const membershipRole = getMembershipRoleFromAccess(access)
+  const canManageMedications = canManageMedicationsRole(membershipRole)
 
   // Medications are hidden from caregivers entirely (nav already excludes
   // this route) - block direct URL access too, consistent with that
   // product decision.
-  if (access.role === 'caregiver') {
+  if (membershipRole === 'caregiver') {
     redirect('/staff')
   }
 
@@ -39,7 +42,7 @@ export default async function MedicationsPage() {
       initialMedications={medications}
       initialAlerts={alerts}
       activeResidents={residents.filter((r) => r.status !== 'archived')}
-      canManage={access.role === 'admin' || access.role === 'nurse'}
+      canManage={canManageMedications}
       loadError={loadError}
     />
   )

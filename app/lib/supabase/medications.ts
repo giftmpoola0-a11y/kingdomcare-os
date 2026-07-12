@@ -1,7 +1,11 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { type CurrentUserAccess } from '@/app/lib/supabase/access'
+import {
+  canManageMedicationsRole,
+  getMembershipRoleFromAccess,
+  type CurrentUserAccess,
+} from '@/app/lib/supabase/access'
 import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getSupabaseServerClient } from '@/app/lib/supabase/server'
@@ -578,7 +582,9 @@ async function getMedicationContext(requiredAccess: 'read' | 'manage') {
   const access = await getCurrentUserServerAccess(supabase)
   const context = getMedicationAccessContext(access)
 
-  if (requiredAccess === 'manage' && access.role !== 'admin' && access.role !== 'nurse') {
+  const membershipRole = getMembershipRoleFromAccess(access)
+
+  if (requiredAccess === 'manage' && !canManageMedicationsRole(membershipRole)) {
     throw new Error('Only care home admins and nurses can manage medications.')
   }
 
@@ -770,4 +776,6 @@ function normalizeMedicationAlertSeverity(value: string | null | undefined): Med
 function normalizeMedicationAlertStatus(value: string | null | undefined): MedicationAlertStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
+
+
 

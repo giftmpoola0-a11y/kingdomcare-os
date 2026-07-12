@@ -20,6 +20,7 @@ test.describe.serial('caregiver role access', () => {
       await expect(page.getByRole('link', { name: /create shift report/i }).first()).toBeVisible()
       await expect(page.getByRole('link', { name: /view shift reports/i }).first()).toBeVisible()
       await expect(page.getByRole('link', { name: /create task/i })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: /medications/i })).toHaveCount(0)
 
       await page.goto(`${BASE}/incidents/new`, { waitUntil: 'load' })
       await expect(page).toHaveURL(/\/incidents\/new$/)
@@ -37,7 +38,7 @@ test.describe.serial('caregiver role access', () => {
     }
   })
 
-  test('caregiver is blocked from admin nurse task and staff management routes', async ({ page }, testInfo) => {
+  test('caregiver is blocked from admin nurse task, staff management, and medications routes', async ({ page }, testInfo) => {
     test.skip(
       !E2E_CAREGIVER_EMAIL || !E2E_CAREGIVER_PASSWORD,
       'Set E2E_CAREGIVER_EMAIL and E2E_CAREGIVER_PASSWORD to run the caregiver role-access tests.'
@@ -56,6 +57,11 @@ test.describe.serial('caregiver role access', () => {
       await expect(page).toHaveURL(/\/tasks$/)
       await expect(page.getByRole('heading', { name: /daily tasks/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /create task/i })).toHaveCount(0)
+
+      await page.goto(`${BASE}/medications`, { waitUntil: 'load' })
+      await expect(page).toHaveURL(/\/staff$/)
+      await expect(page.getByRole('heading', { name: /caregiver workspace/i })).toBeVisible()
+      await expect(page.getByText(/medication management/i)).toHaveCount(0)
     } catch (error) {
       diagnostics.push(`failure url: ${page.url()}`)
       diagnostics.push(`body excerpt: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 1000).replace(/\s+/g, ' ').trim()}`)

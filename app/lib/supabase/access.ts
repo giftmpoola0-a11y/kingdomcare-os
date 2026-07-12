@@ -139,3 +139,14 @@ async function measureMembershipLookup(supabase: SupabaseClient, userId: string)
 export function normalizeMembershipRole(role: string | null | undefined): MembershipRole | null {
   return role === 'admin' || role === 'nurse' || role === 'caregiver' ? role : null
 }
+
+export function getMembershipRoleFromAccess(
+  access: Pick<CurrentUserAccess, 'membership' | 'role'>,
+): MembershipRole | null {
+  return normalizeMembershipRole(access.membership?.role ?? access.role)
+}
+
+export function canManageMedicationsRole(role: MembershipRole | null | undefined) {
+  return role === 'admin' || role === 'nurse'
+}
+
