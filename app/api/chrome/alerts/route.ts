@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { APP_NAV_HREFS, canAccessAppNavLabel } from '@/app/lib/app-navigation'
+import { CAREGIVER_STAFF_MEDICATIONS_HREF } from '@/app/lib/chrome-medication-alarms'
+import { getMedicationAlertUrgency } from '@/app/lib/medicationReminders'
 import { measureServerStep } from '@/app/lib/perf'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
 import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
@@ -131,8 +133,7 @@ export async function POST(request: Request) {
 async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>, access: CurrentUserAccess): Promise<AlertsPayload> {
   const taskAlertsEnabled = canAccessAppNavLabel(access.role, 'Tasks')
   const incidentAlertsEnabled = canAccessAppNavLabel(access.role, 'Incidents')
-  const medicationAlertsEnabled =
-    canAccessAppNavLabel(access.role, 'Medications') && access.role !== 'caregiver'
+  const medicationAlertsEnabled = Boolean(access.role)
   const residentAdditionsEnabled = canAccessAppNavLabel(access.role, 'Residents')
   const nowIso = new Date().toISOString()
 
@@ -162,7 +163,7 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
   const medicationAlertsPromise = medicationAlertsEnabled
     ? supabase
         .from('medication_alerts')
-        .select('id, resident_id, message, severity, due_at')
+        .select('id, resident_id, message, severity, due_at, status')
         .eq('care_home_id', access.careHomeId!)
         .is('deleted_at', null)
         .in('status', ['open', 'reviewing'])
@@ -312,11 +313,14 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
         alert.severity,
         residentNameById.get(alert.resident_id ?? '') ?? null,
       ),
-      href: APP_NAV_HREFS.Medications,
+      href:
+        access.role === 'caregiver'
+          ? CAREGIVER_STAFF_MEDICATIONS_HREF
+          : APP_NAV_HREFS.Medications,
       checked: false,
       checkable: false,
       notificationKey: null,
-      statusLabel: 'Needs attention',
+      statusLabel: buildMedicationAlertStatusLabel(alert.status, alert.due_at),
     })),
   ].slice(0, TOTAL_LIMIT)
 
@@ -439,6 +443,18 @@ function buildMedicationAlertSubtitle(severity: string | null, residentName: str
   return `${residentLabel} - ${severityLabel}`
 }
 
+function buildMedicationAlertStatusLabel(status: string | null, dueAt: string | null) {
+  const urgency = getMedicationAlertUrgency({
+    status: status === 'reviewing' ? 'reviewing' : 'open',
+    dueAt,
+  })
+
+  if (urgency === 'overdue') return 'Overdue'
+  if (urgency === 'due_soon') return 'Due soon'
+  if (urgency === 'needs_review') return 'Needs review'
+  return 'Needs attention'
+}
+
 function buildResidentAdditionSubtitle(createdAt: string) {
   return `Added ${formatTimestamp(createdAt)}`
 }
@@ -461,6 +477,10 @@ function formatTimestamp(value: string) {
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
+
+
+
+
 
 
 

@@ -43,6 +43,17 @@ test.describe.serial('nurse role access', () => {
       await expect(page.getByRole('heading', { name: /medication management/i })).toBeVisible()
       await expect(page.getByRole('heading', { name: /add medication/i })).toBeVisible()
       await expect(page.getByText(/Only care home admins and nurses can manage medications\./i)).toHaveCount(0)
+
+      const medicationAlarms = await page.evaluate(async () => {
+        const response = await fetch('/api/chrome/medication-alarms', { cache: 'no-store' })
+        return {
+          status: response.status,
+          payload: await response.json(),
+        }
+      })
+      expect(medicationAlarms.status).toBe(200)
+      expect(medicationAlarms.payload.actionHref).toBe('/medications')
+      expect(medicationAlarms.payload.actionLabel).toBe('Open medications')
     } catch (error) {
       diagnostics.push(`failure url: ${page.url()}`)
       diagnostics.push(`body excerpt: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 1000).replace(/\s+/g, ' ').trim()}`)
@@ -73,3 +84,4 @@ test.describe.serial('nurse role access', () => {
     }
   })
 })
+

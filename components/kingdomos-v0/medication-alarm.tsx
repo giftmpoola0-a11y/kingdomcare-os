@@ -4,25 +4,20 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { BellRing, Volume2, X } from 'lucide-react'
+import { CHROME_DATA_REFRESH_EVENT } from '@/app/lib/chrome-realtime'
+import type {
+  MedicationAlarmItem,
+  MedicationAlarmsPayload,
+} from '@/app/lib/chrome-medication-alarms'
 import type { MembershipRole } from '@/app/lib/supabase/access'
-import type { MedicationAlertUrgency } from '@/app/lib/medicationReminders'
-
-interface MedicationAlarmItem {
-  id: string
-  residentName: string | null
-  medicationName: string | null
-  message: string
-  severity: string
-  dueAt: string | null
-  urgency: MedicationAlertUrgency
-}
-
-interface MedicationAlarmsPayload {
-  items: MedicationAlarmItem[]
-}
 
 const POLL_INTERVAL_MS = 60_000
 const MAX_VISIBLE_TOASTS = 3
+const DEFAULT_ACTION = {
+  canManage: false as const,
+  actionHref: '/staff?focus=medications#medication-reminders',
+  actionLabel: 'Open staff workspace',
+}
 
 interface LoadMedicationAlarmsDeps {
   signal?: AbortSignal
@@ -30,18 +25,12 @@ interface LoadMedicationAlarmsDeps {
   playedAlertIdsRef: MutableRefObject<Set<string>>
   soundEnabledRef: MutableRefObject<boolean>
   setItems: (items: MedicationAlarmItem[]) => void
+  setAlarmAction: (next: { canManage: boolean; actionHref: string; actionLabel: string }) => void
   setDismissedIds: (updater: (current: Set<string>) => Set<string>) => void
 }
 
-/**
- * Module-level (not component-scoped) on purpose: it takes its React state
- * setters and refs as plain arguments instead of closing over them, so each
- * effect below can invoke it directly without tripping the "no setState
- * calls reachable from an effect body" lint rule that a shared in-component
- * helper would hit.
- */
 async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
-  const { signal, fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setDismissedIds } = deps
+  const { signal, fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds } = deps
 
   if (fetchingRef.current) return
   fetchingRef.current = true
@@ -59,13 +48,20 @@ async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
     const payload = (await response.json()) as Partial<MedicationAlarmsPayload>
     const nextItems = Array.isArray(payload.items) ? payload.items : []
     setItems(nextItems)
+    setAlarmAction({
+      canManage: payload.canManage === true,
+      actionHref:
+        typeof payload.actionHref === 'string' && payload.actionHref.length > 0
+          ? payload.actionHref
+          : DEFAULT_ACTION.actionHref,
+      actionLabel:
+        typeof payload.actionLabel === 'string' && payload.actionLabel.length > 0
+          ? payload.actionLabel
+          : DEFAULT_ACTION.actionLabel,
+    })
 
-    const overdueIds = new Set(
-      nextItems.filter((item) => item.urgency === 'overdue').map((item) => item.id)
-    )
+    const overdueIds = new Set(nextItems.filter((item) => item.urgency === 'overdue').map((item) => item.id))
 
-    // Play once per newly-seen overdue alert id this session, then never
-    // again for that same id - regardless of whether sound is on yet.
     for (const item of nextItems) {
       if (item.urgency !== 'overdue') continue
       if (playedAlertIdsRef.current.has(item.id)) continue
@@ -76,9 +72,6 @@ async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
       }
     }
 
-    // Drop dismissed ids that are no longer active (acknowledged elsewhere,
-    // resolved, or aged out of "overdue") so a future re-occurrence of the
-    // same id (unlikely, but keeps state tidy) isn't permanently silenced.
     setDismissedIds((current) => {
       if (current.size === 0) return current
       const next = new Set(Array.from(current).filter((id) => overdueIds.has(id)))
@@ -94,19 +87,19 @@ async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
 }
 
 /**
- * Persistent, admin/nurse-only in-app alarm for overdue medication alerts.
- * Real Supabase data only - no localStorage, no browser Notification API,
- * no OS-level permission prompts. Sound is opt-in and only ever triggered
- * from a genuine click, to respect browser autoplay restrictions.
+ * Persistent in-app alarm for overdue medication alerts.
+ * Realtime only triggers refetches; all displayed data still comes from
+ * the role-aware server API.
  */
 export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
-  const canSeeAlarms = role === 'admin' || role === 'nurse'
+  const canSeeAlarms = role === 'admin' || role === 'nurse' || role === 'caregiver'
   const pathname = usePathname()
 
   const [items, setItems] = useState<MedicationAlarmItem[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [soundOfferVisible, setSoundOfferVisible] = useState(true)
+  const [alarmAction, setAlarmAction] = useState<{ canManage: boolean; actionHref: string; actionLabel: string }>(DEFAULT_ACTION)
 
   const fetchingRef = useRef(false)
   const isFirstPathnameRef = useRef(true)
@@ -124,6 +117,7 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
       playedAlertIdsRef,
       soundEnabledRef,
       setItems,
+      setAlarmAction,
       setDismissedIds,
     })
     return () => controller.abort()
@@ -144,6 +138,7 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
       playedAlertIdsRef,
       soundEnabledRef,
       setItems,
+      setAlarmAction,
       setDismissedIds,
     })
     return () => controller.abort()
@@ -154,31 +149,31 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setDismissedIds })
+        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
       }
+    }
+
+    function handleChromeRefresh() {
+      void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleVisibilityChange)
+    window.addEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setDismissedIds })
+        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
       }
     }, POLL_INTERVAL_MS)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleVisibilityChange)
+      window.removeEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
       window.clearInterval(interval)
     }
   }, [canSeeAlarms])
-
-  useEffect(() => {
-    return () => {
-      audioContextRef.current?.close().catch(() => {})
-    }
-  }, [])
 
   if (!canSeeAlarms) {
     return null
@@ -189,8 +184,6 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
   const overflowCount = overdueItems.length - visibleItems.length
 
   function handleEnableSound() {
-    // Creating/resuming the AudioContext here - inside a real click handler
-    // - is what satisfies the browser's autoplay-requires-a-gesture rule.
     soundEnabledRef.current = true
     setSoundEnabled(true)
     setSoundOfferVisible(false)
@@ -250,14 +243,14 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-rose-200">
               Medication alert overdue: {item.residentName ?? 'Unlinked resident'}
-              {item.medicationName ? ` — ${item.medicationName}` : ''}
+              {item.medicationName ? ` - ${item.medicationName}` : ''}
             </p>
             <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.message}</p>
             <Link
-              href="/medications"
+              href={alarmAction.actionHref}
               className="mt-2 inline-flex items-center text-xs font-semibold text-rose-200 underline decoration-rose-400/40 underline-offset-2 hover:text-rose-100"
             >
-              Open medications
+              {alarmAction.actionLabel}
             </Link>
           </div>
           <button
@@ -273,7 +266,7 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
 
       {overflowCount > 0 ? (
         <Link
-          href="/medications"
+          href={alarmAction.actionHref}
           className="block rounded-2xl border border-white/10 bg-card/90 px-4 py-2.5 text-xs font-semibold text-muted-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-accent hover:text-foreground"
         >
           +{overflowCount} more overdue medication alert{overflowCount === 1 ? '' : 's'}
@@ -301,10 +294,6 @@ function getAudioContext(ref: MutableRefObject<AudioContext | null>): AudioConte
   return ref.current
 }
 
-/**
- * Synthesizes a short, subtle two-tone chime with the Web Audio API instead
- * of shipping/loading an audio file. Single play, no looping.
- */
 function playChime(context?: AudioContext | null) {
   try {
     const ctx = context ?? new (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
@@ -333,3 +322,6 @@ function playChime(context?: AudioContext | null) {
     // Web Audio unavailable/blocked - visual alarm still works on its own.
   }
 }
+
+
+

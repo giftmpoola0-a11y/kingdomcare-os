@@ -7,6 +7,7 @@ import { Bell, CheckCheck, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { CHROME_DATA_REFRESH_EVENT } from '@/app/lib/chrome-realtime'
 import type { MembershipRole } from '@/app/lib/supabase/access'
 
 interface AppTopbarProps {
@@ -205,12 +206,22 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
       void loadAlerts()
     }
 
+    function handleChromeRefresh() {
+      if (alertsFetchingRef.current) {
+        return
+      }
+
+      void loadAlerts()
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleVisibilityChange)
+    window.addEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleVisibilityChange)
+      window.removeEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
     }
   }, [])
 
@@ -711,3 +722,4 @@ function getInitials(value: string) {
     .map((part) => part.charAt(0).toUpperCase())
     .join('')
 }
+

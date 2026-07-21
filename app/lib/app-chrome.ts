@@ -4,6 +4,7 @@ export interface AppChromeProps {
   role: MembershipRole | null
   userDisplayName: string
   careHomeName: string
+  careHomeId: string
 }
 
 export function getAppChromeProps(access: CurrentUserAccess): AppChromeProps {
@@ -11,5 +12,6 @@ export function getAppChromeProps(access: CurrentUserAccess): AppChromeProps {
     role: access.role,
     userDisplayName: access.profile?.fullName || access.profile?.email || access.user?.email || '',
     careHomeName: access.careHomeName,
+    careHomeId: access.careHomeId ?? '',
   }
 }

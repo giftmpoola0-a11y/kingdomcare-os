@@ -30,6 +30,17 @@ test.describe.serial('caregiver role access', () => {
       await expect(page).toHaveURL(/\/tasks$/)
       await expect(page.getByRole('heading', { name: /daily tasks/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /create task/i })).toHaveCount(0)
+
+      const medicationAlarms = await page.evaluate(async () => {
+        const response = await fetch('/api/chrome/medication-alarms', { cache: 'no-store' })
+        return {
+          status: response.status,
+          payload: await response.json(),
+        }
+      })
+      expect(medicationAlarms.status).toBe(200)
+      expect(medicationAlarms.payload.actionHref).toBe('/staff?focus=medications#medication-reminders')
+      expect(medicationAlarms.payload.actionLabel).toBe('Open staff workspace')
     } catch (error) {
       diagnostics.push(`failure url: ${page.url()}`)
       diagnostics.push(`body excerpt: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 1000).replace(/\s+/g, ' ').trim()}`)
@@ -70,3 +81,5 @@ test.describe.serial('caregiver role access', () => {
     }
   })
 })
+
+
