@@ -1,15 +1,9 @@
 import { performance } from 'node:perf_hooks'
 import { redirect } from 'next/navigation'
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import { DashboardShell } from '@/components/kingdomos-v0/dashboard-shell'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
 import { DashboardDeferredContent } from './dashboard-deferred-content'
 import { type MembershipRole } from '@/app/lib/supabase/access'
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: '--font-v0-sans',
-  subsets: ['latin'],
-})
 
 type DashboardTimingEntry = {
   label: string
@@ -104,7 +98,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className={`${plusJakartaSans.variable} bg-background font-sans antialiased`}>
+    <div className="bg-background font-sans antialiased">
       <div className="v0-dashboard-theme dark">
         <DashboardShell
           roleLabel={dashboardRoleLabel(access.role)}
@@ -167,4 +161,3 @@ function dashboardRoleLabel(role: MembershipRole | null | undefined) {
       return 'Care Team'
   }
 }
-

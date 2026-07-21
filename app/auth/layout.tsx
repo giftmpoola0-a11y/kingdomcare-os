@@ -1,10 +1,4 @@
-import { Plus_Jakarta_Sans } from 'next/font/google'
 import type { CSSProperties, ReactNode } from 'react'
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: '--font-v0-sans',
-  subsets: ['latin'],
-})
 
 const authThemeStyles = {
   '--background': 'oklch(0.145 0 0)',
@@ -21,10 +15,7 @@ const authThemeStyles = {
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={`${plusJakartaSans.variable} v0-dashboard-theme dark min-h-screen bg-background font-sans text-foreground antialiased`}
-      style={authThemeStyles}
-    >
+    <div className="v0-dashboard-theme dark min-h-screen bg-background font-sans text-foreground antialiased" style={authThemeStyles}>
       {children}
     </div>
   )

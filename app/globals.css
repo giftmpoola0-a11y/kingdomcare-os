@@ -164,6 +164,11 @@ body {
 }
 
 :root {
+  --font-v0-sans: 'Aptos', 'Segoe UI', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-geist-sans: 'Aptos', 'Segoe UI', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-heading-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --font-body: var(--font-geist-sans);
+  --font-mono: 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   color-scheme: light;
 
   --kc-cocoa: oklch(0.32 0.006 120);
@@ -257,6 +262,11 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
+  --font-v0-sans: 'Aptos', 'Segoe UI', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-geist-sans: 'Aptos', 'Segoe UI', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-heading-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  --font-body: var(--font-geist-sans);
+  --font-mono: 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     color-scheme: dark;
   }
 }
@@ -410,5 +420,6 @@ body {
     background: rgba(74, 222, 128, 0.18);
   }
 }
+
 
 
