@@ -4,9 +4,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { logServerPerf, measureServerStep } from '@/app/lib/perf'
 import type { DemoResident, ResidentStatus } from '@/app/lib/reportTypes'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 
 type ResidentRow = Tables<'residents'>
 type ResidentRecordRow = Pick<
@@ -612,8 +611,7 @@ export async function removeResidentPhoto(residentId: string): Promise<ResidentR
 }
 
 async function getResidentContext(requiredAccess: 'read' | 'admin') {
-  const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserServerAccess(supabase)
+  const { supabase, access } = await getCurrentRequestSupabaseAccess()
   const context = getResidentAccessContext(access)
 
   if (requiredAccess === 'admin' && access.role !== 'admin') {
@@ -758,6 +756,7 @@ function normalizeResidentStatus(status: string): ResidentStatus {
 function normalizeResidentSex(value: string | null | undefined): ResidentSex {
   return value === 'male' || value === 'female' || value === 'other' ? value : 'unknown'
 }
+
 
 
 

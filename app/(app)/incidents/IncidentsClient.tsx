@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,6 +14,7 @@ import {
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import { cn } from '@/lib/utils'
+import { dispatchChromeDataRefresh } from '@/app/lib/chrome-realtime'
 import { deleteIncidentAction, resolveIncidentAction } from './actions'
 
 const FILTER_OPTIONS = ['Open', 'Resolved', 'All'] as const
@@ -34,14 +34,20 @@ export default function IncidentsClient({
   canManageIncidents,
   loadError,
 }: IncidentsClientProps) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<IncidentFilter>('Open')
   const [actionError, setActionError] = useState('')
+  const [incidents, setIncidents] = useState(initialIncidents)
+  const [syncedInitialIncidents, setSyncedInitialIncidents] = useState(initialIncidents)
+
+  if (initialIncidents !== syncedInitialIncidents) {
+    setSyncedInitialIncidents(initialIncidents)
+    setIncidents(initialIncidents)
+  }
 
   const activeIncidents = useMemo(
-    () => initialIncidents.filter((incident) => incident.deletedAt === null && incident.status !== 'archived'),
-    [initialIncidents],
+    () => incidents.filter((incident) => incident.deletedAt === null && incident.status !== 'archived'),
+    [incidents],
   )
 
   const filteredIncidents = useMemo(() => {
@@ -73,7 +79,10 @@ export default function IncidentsClient({
         setActionError(result.error)
         return
       }
-      router.refresh()
+      if (result.incident) {
+        setIncidents((current) => current.map((incident) => (incident.id === result.incident!.id ? result.incident! : incident)))
+      }
+      dispatchChromeDataRefresh({ source: 'incidents' })
     })
   }
 
@@ -87,7 +96,10 @@ export default function IncidentsClient({
         setActionError(result.error)
         return
       }
-      router.refresh()
+      if (result.incident) {
+        setIncidents((current) => current.map((incident) => (incident.id === result.incident!.id ? result.incident! : incident)))
+      }
+      dispatchChromeDataRefresh({ source: 'incidents' })
     })
   }
 
@@ -404,6 +416,8 @@ function formatDateTime(raw: string): string {
     minute: '2-digit',
   })
 }
+
+
 
 
 

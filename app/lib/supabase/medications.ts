@@ -6,9 +6,8 @@ import {
   getMembershipRoleFromAccess,
   type CurrentUserAccess,
 } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 type MedicationRow = Tables<'medications'>
@@ -578,8 +577,7 @@ export function mapMedicationAlertRowToRecord(row: MedicationAlertRow): Medicati
 // ============================================================
 
 async function getMedicationContext(requiredAccess: 'read' | 'manage') {
-  const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserServerAccess(supabase)
+  const { supabase, access } = await getCurrentRequestSupabaseAccess()
   const context = getMedicationAccessContext(access)
 
   const membershipRole = getMembershipRoleFromAccess(access)
@@ -776,6 +774,7 @@ function normalizeMedicationAlertSeverity(value: string | null | undefined): Med
 function normalizeMedicationAlertStatus(value: string | null | undefined): MedicationAlertStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
+
 
 
 

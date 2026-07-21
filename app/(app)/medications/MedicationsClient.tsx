@@ -41,7 +41,7 @@ import type {
   MedicationAlertType,
   MedicationAlertSeverity,
 } from '@/app/lib/supabase/medications'
-import type { ResidentRecord } from '@/app/lib/supabase/residents'
+import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import {
   createMedicationAction,
   resumeMedicationAction,
@@ -101,7 +101,7 @@ interface PendingConfirmation {
 export interface MedicationsClientProps {
   initialMedications: MedicationRecord[]
   initialAlerts: MedicationAlertRecord[]
-  activeResidents: ResidentRecord[]
+  activeResidents: ResidentListItem[]
   canManage: boolean
   loadError: string | null
 }
@@ -1469,6 +1469,7 @@ function formatDateTime(value: string) {
     minute: '2-digit',
   })
 }
+
 
 
 

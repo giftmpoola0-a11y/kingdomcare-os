@@ -1,20 +1,21 @@
-﻿'use server'
+'use server'
 
 import { revalidatePath } from 'next/cache'
 import { resolveIncident, softDeleteIncident } from '@/app/lib/supabase/incidents'
+import type { IncidentRecord } from '@/app/lib/supabase/incidents'
 
 export type IncidentActionResult =
-  | { success: true }
+  | { success: true; id?: string; incident?: IncidentRecord }
   | { success: false; error: string }
 
 export async function resolveIncidentAction(id: string): Promise<IncidentActionResult> {
   try {
-    await resolveIncident(id)
+    const incident = await resolveIncident(id)
     revalidatePath('/incidents')
     revalidatePath(`/incidents/${id}`)
     revalidatePath('/staff')
     revalidatePath('/')
-    return { success: true }
+    return { success: true, incident }
   } catch (error) {
     return {
       success: false,
@@ -31,7 +32,7 @@ export async function deleteIncidentAction(id: string): Promise<IncidentActionRe
     revalidatePath(`/incidents/${id}`)
     revalidatePath('/staff')
     revalidatePath('/')
-    return { success: true }
+    return { success: true, id }
   } catch (error) {
     return {
       success: false,

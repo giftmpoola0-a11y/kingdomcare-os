@@ -2,9 +2,8 @@ import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
@@ -403,8 +402,7 @@ export function mapIncidentRowToRecord(row: IncidentRow): IncidentRecord {
 }
 
 async function getIncidentContext(requiredAccess: 'read' | 'write' | 'manage') {
-  const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserServerAccess(supabase)
+  const { supabase, access } = await getCurrentRequestSupabaseAccess()
   const context = getIncidentAccessContext(access)
 
   if (requiredAccess === 'manage' && access.role !== 'admin' && access.role !== 'nurse') {
@@ -617,6 +615,7 @@ function normalizeIncidentSeverity(value: string | null | undefined): IncidentSe
 function normalizeIncidentStatus(value: string | null | undefined): IncidentStatus {
   return value === 'reviewing' || value === 'resolved' || value === 'archived' ? value : 'open'
 }
+
 
 
 

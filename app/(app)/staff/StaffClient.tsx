@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
   ArrowRight,
@@ -64,7 +63,6 @@ export default function StaffClient({
   loadError,
   incidentCreateHref,
 }: StaffClientProps) {
-  const router = useRouter()
   const [isTaskActionPending, startTaskActionTransition] = useTransition()
   const [taskActionError, setTaskActionError] = useState('')
   const [tasks, setTasks] = useState(openTasks)
@@ -170,7 +168,7 @@ export default function StaffClient({
         return
       }
 
-      router.refresh()
+      window.dispatchEvent(new CustomEvent(CHROME_DATA_REFRESH_EVENT, { detail: { source: 'tasks' } }))
     })
   }
 
@@ -679,4 +677,5 @@ function formatDateTime(value: string) {
     minute: '2-digit',
   })
 }
+
 

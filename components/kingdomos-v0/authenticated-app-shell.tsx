@@ -1,7 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { MedicationAlarm } from '@/components/kingdomos-v0/medication-alarm'
@@ -37,14 +36,20 @@ export function AuthenticatedAppShell({
   careHomeId,
   children,
 }: AuthenticatedAppShellProps) {
-  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [badgeCounts, setBadgeCounts] = useState<SidebarBadgeCounts>(EMPTY_SIDEBAR_BADGE_COUNTS)
+  const badgeCountsFetchingRef = useRef(false)
 
   useEffect(() => {
     let active = true
 
     async function loadBadgeCounts() {
+      if (badgeCountsFetchingRef.current) {
+        return
+      }
+
+      badgeCountsFetchingRef.current = true
+
       try {
         const response = await fetch('/api/chrome/sidebar-badge-counts', {
           cache: 'no-store',
@@ -82,7 +87,17 @@ export function AuthenticatedAppShell({
         if (active) {
           console.error('Failed to load sidebar badge counts in app shell:', error)
         }
+      } finally {
+        badgeCountsFetchingRef.current = false
       }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+
+      void loadBadgeCounts()
     }
 
     function handleChromeRefresh() {
@@ -90,13 +105,17 @@ export function AuthenticatedAppShell({
     }
 
     void loadBadgeCounts()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleVisibilityChange)
     window.addEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
 
     return () => {
       active = false
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleVisibilityChange)
       window.removeEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
     }
-  }, [pathname])
+  }, [])
 
   useEffect(() => {
     if (!careHomeId) {

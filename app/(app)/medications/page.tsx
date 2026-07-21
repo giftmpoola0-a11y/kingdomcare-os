@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
 import { getAuthenticatedAppContext } from '@/app/lib/authenticated-app'
 import { canManageMedicationsRole, getMembershipRoleFromAccess } from '@/app/lib/supabase/access'
-import { getCurrentCareHomeResidents, type ResidentRecord } from '@/app/lib/supabase/residents'
+import {
+  getCurrentCareHomeResidentListItems,
+  type ResidentListItem,
+} from '@/app/lib/supabase/residents'
 import {
   getCurrentCareHomeMedications,
   getCurrentCareHomeMedicationAlerts,
@@ -24,14 +27,14 @@ export default async function MedicationsPage() {
 
   let medications: MedicationRecord[] = []
   let alerts: MedicationAlertRecord[] = []
-  let residents: ResidentRecord[] = []
+  let residents: ResidentListItem[] = []
   let loadError: string | null = null
 
   try {
     ;[medications, alerts, residents] = await Promise.all([
       getCurrentCareHomeMedications(),
       getCurrentCareHomeMedicationAlerts(),
-      getCurrentCareHomeResidents(),
+      getCurrentCareHomeResidentListItems({ activeOnly: true }),
     ])
   } catch {
     loadError = 'Unable to load medications. Please refresh the page.'
@@ -41,9 +44,10 @@ export default async function MedicationsPage() {
     <MedicationsClient
       initialMedications={medications}
       initialAlerts={alerts}
-      activeResidents={residents.filter((r) => r.status !== 'archived')}
+      activeResidents={residents}
       canManage={canManageMedications}
       loadError={loadError}
     />
   )
 }
+

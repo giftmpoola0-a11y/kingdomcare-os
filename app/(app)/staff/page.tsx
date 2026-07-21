@@ -15,7 +15,8 @@ import {
 } from '@/app/lib/supabase/medications'
 import {
   getActiveCurrentCareHomeResidents,
-  getCurrentCareHomeResidents,
+  getCurrentCareHomeResidentListItems,
+  type ResidentListItem,
   type ResidentRecord,
 } from '@/app/lib/supabase/residents'
 import {
@@ -47,7 +48,7 @@ export default async function StaffPage({
     let openTasks: TaskRecord[] = []
     let recentIncidents: IncidentRecord[] = []
     let medicationAlerts: MedicationAlertRecord[] = []
-    let residents: ResidentRecord[] = []
+    let residents: ResidentListItem[] = []
     let activeResidents: ResidentRecord[] = []
     let recentShiftReports: ShiftReportRecord[] = []
     let caregiverMedicationReminders: MedicationAlarmItem[] = []
@@ -69,7 +70,7 @@ export default async function StaffPage({
         ;[medicationAlerts, recentIncidents, residents] = await Promise.all([
           getOpenCurrentCareHomeMedicationAlerts(),
           getRecentCurrentCareHomeIncidents(6),
-          getCurrentCareHomeResidents(),
+          getCurrentCareHomeResidentListItems({ activeOnly: true }),
         ])
       }
     } catch (error) {
@@ -99,3 +100,4 @@ export default async function StaffPage({
     )
   })
 }
+

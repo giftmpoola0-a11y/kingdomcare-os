@@ -3,9 +3,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
@@ -325,8 +324,7 @@ export function mapTaskRowToRecord(row: TaskRow): TaskRecord {
 }
 
 async function getTaskContext(requiredAccess: 'read' | 'create' | 'manage' | 'status') {
-  const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-  const access = await getCurrentUserServerAccess(supabase)
+  const { supabase, access } = await getCurrentRequestSupabaseAccess()
   const context = getTaskAccessContext(access)
 
   if (requiredAccess === 'create' && access.role !== 'admin' && access.role !== 'nurse') {
@@ -497,6 +495,7 @@ function normalizeTaskCategory(category: string | null | undefined): TaskCategor
     ? (category as TaskCategory)
     : 'Other'
 }
+
 
 
 

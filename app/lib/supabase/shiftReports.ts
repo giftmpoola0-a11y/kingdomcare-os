@@ -2,9 +2,8 @@ import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { Database, Json, Tables, TablesInsert } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
@@ -183,8 +182,7 @@ export function mapShiftReportRowToRecord(row: ShiftReportRow): ShiftReportRecor
 }
 
 async function getShiftReportContext() {
-  const supabase = await getSupabaseServerClient()
-  const access = await getCurrentUserServerAccess(supabase)
+  const { supabase, access } = await getCurrentRequestSupabaseAccess()
   const context = getShiftReportAccessContext(access)
 
   return {
@@ -240,6 +238,7 @@ function serializeNoteFields(notes: ShiftReportNoteField[]): Json {
     value: note.value,
   }))
 }
+
 
 
 
