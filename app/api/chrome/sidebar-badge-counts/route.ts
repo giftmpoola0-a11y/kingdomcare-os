@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server'
+import { measureServerStep } from '@/app/lib/perf'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { getCurrentCareHomeSidebarBadgeCounts } from '@/app/lib/supabase/sidebar-badge-counts'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const badgeCounts = await getCurrentCareHomeSidebarBadgeCounts()
+    const { supabase, access } = await measureServerStep(
+      'api:/api/chrome/sidebar-badge-counts:access',
+      () => getCurrentRequestSupabaseAccess()
+    )
+    const badgeCounts = await measureServerStep(
+      'api:/api/chrome/sidebar-badge-counts:GET',
+      () => getCurrentCareHomeSidebarBadgeCounts(access, supabase),
+      { role: access.role }
+    )
+
     return NextResponse.json(badgeCounts)
   } catch (error) {
     console.error('Failed to load sidebar badge counts route:', error)

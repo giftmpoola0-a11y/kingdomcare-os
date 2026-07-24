@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { BellRing, Volume2, X } from 'lucide-react'
 import { CHROME_DATA_REFRESH_EVENT } from '@/app/lib/chrome-realtime'
@@ -12,6 +11,7 @@ import type {
 import type { MembershipRole } from '@/app/lib/supabase/access'
 
 const POLL_INTERVAL_MS = 60_000
+const REFRESH_DEBOUNCE_MS = 140
 const MAX_VISIBLE_TOASTS = 3
 const DEFAULT_ACTION = {
   canManage: false as const,
@@ -22,6 +22,7 @@ const DEFAULT_ACTION = {
 interface LoadMedicationAlarmsDeps {
   signal?: AbortSignal
   fetchingRef: MutableRefObject<boolean>
+  pendingRefreshRef: MutableRefObject<boolean>
   playedAlertIdsRef: MutableRefObject<Set<string>>
   soundEnabledRef: MutableRefObject<boolean>
   setItems: (items: MedicationAlarmItem[]) => void
@@ -30,9 +31,22 @@ interface LoadMedicationAlarmsDeps {
 }
 
 async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
-  const { signal, fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds } = deps
+  const {
+    signal,
+    fetchingRef,
+    pendingRefreshRef,
+    playedAlertIdsRef,
+    soundEnabledRef,
+    setItems,
+    setAlarmAction,
+    setDismissedIds,
+  } = deps
 
-  if (fetchingRef.current) return
+  if (fetchingRef.current) {
+    pendingRefreshRef.current = true
+    return
+  }
+
   fetchingRef.current = true
 
   try {
@@ -83,17 +97,16 @@ async function loadMedicationAlarms(deps: LoadMedicationAlarmsDeps) {
     // surfaces load errors.
   } finally {
     fetchingRef.current = false
+
+    if (pendingRefreshRef.current && !signal?.aborted) {
+      pendingRefreshRef.current = false
+      void loadMedicationAlarms(deps)
+    }
   }
 }
 
-/**
- * Persistent in-app alarm for overdue medication alerts.
- * Realtime only triggers refetches; all displayed data still comes from
- * the role-aware server API.
- */
 export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
   const canSeeAlarms = role === 'admin' || role === 'nurse' || role === 'caregiver'
-  const pathname = usePathname()
 
   const [items, setItems] = useState<MedicationAlarmItem[]>([])
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
@@ -102,59 +115,65 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
   const [alarmAction, setAlarmAction] = useState<{ canManage: boolean; actionHref: string; actionLabel: string }>(DEFAULT_ACTION)
 
   const fetchingRef = useRef(false)
-  const isFirstPathnameRef = useRef(true)
+  const pendingRefreshRef = useRef(false)
+  const scheduledRefreshRef = useRef<number | null>(null)
   const playedAlertIdsRef = useRef<Set<string>>(new Set())
   const soundEnabledRef = useRef(false)
   const audioContextRef = useRef<AudioContext | null>(null)
 
-  useEffect(() => {
-    if (!canSeeAlarms) return
+  function requestMedicationAlarmRefresh(options?: { signal?: AbortSignal; immediate?: boolean }) {
+    if (scheduledRefreshRef.current !== null) {
+      window.clearTimeout(scheduledRefreshRef.current)
+      scheduledRefreshRef.current = null
+    }
 
-    const controller = new AbortController()
-    void loadMedicationAlarms({
-      signal: controller.signal,
-      fetchingRef,
-      playedAlertIdsRef,
-      soundEnabledRef,
-      setItems,
-      setAlarmAction,
-      setDismissedIds,
-    })
-    return () => controller.abort()
-  }, [canSeeAlarms])
+    const run = () =>
+      loadMedicationAlarms({
+        signal: options?.signal,
+        fetchingRef,
+        pendingRefreshRef,
+        playedAlertIdsRef,
+        soundEnabledRef,
+        setItems,
+        setAlarmAction,
+        setDismissedIds,
+      })
 
-  useEffect(() => {
-    if (!canSeeAlarms) return
-
-    if (isFirstPathnameRef.current) {
-      isFirstPathnameRef.current = false
+    if (options?.immediate) {
+      void run()
       return
     }
 
+    scheduledRefreshRef.current = window.setTimeout(() => {
+      scheduledRefreshRef.current = null
+      void run()
+    }, REFRESH_DEBOUNCE_MS)
+  }
+
+  useEffect(() => {
+    if (!canSeeAlarms) return
+
     const controller = new AbortController()
-    void loadMedicationAlarms({
-      signal: controller.signal,
-      fetchingRef,
-      playedAlertIdsRef,
-      soundEnabledRef,
-      setItems,
-      setAlarmAction,
-      setDismissedIds,
-    })
-    return () => controller.abort()
-  }, [canSeeAlarms, pathname])
+    requestMedicationAlarmRefresh({ signal: controller.signal, immediate: true })
+    return () => {
+      controller.abort()
+      if (scheduledRefreshRef.current !== null) {
+        window.clearTimeout(scheduledRefreshRef.current)
+      }
+    }
+  }, [canSeeAlarms])
 
   useEffect(() => {
     if (!canSeeAlarms) return
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
+        requestMedicationAlarmRefresh()
       }
     }
 
     function handleChromeRefresh() {
-      void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
+      requestMedicationAlarmRefresh()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -163,7 +182,7 @@ export function MedicationAlarm({ role }: { role: MembershipRole | null }) {
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        void loadMedicationAlarms({ fetchingRef, playedAlertIdsRef, soundEnabledRef, setItems, setAlarmAction, setDismissedIds })
+        requestMedicationAlarmRefresh()
       }
     }, POLL_INTERVAL_MS)
 
@@ -319,9 +338,7 @@ function playChime(context?: AudioContext | null) {
       oscillator.stop(end)
     })
   } catch {
-    // Web Audio unavailable/blocked - visual alarm still works on its own.
+    // Browsers can block autoplay/audio context creation until a user gesture.
+    // Silently ignore and keep the visual alarm visible.
   }
 }
-
-
-

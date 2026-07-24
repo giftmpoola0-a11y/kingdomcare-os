@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bell, CheckCheck, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck } from 'lucide-react'
@@ -69,12 +69,16 @@ const EMPTY_ALERTS_PAYLOAD: AlertsPayload = {
   items: [],
 }
 
+const ALERTS_REFRESH_DEBOUNCE_MS = 140
+
 export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTopbarProps) {
   const pathname = usePathname()
   const alertsPanelRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const alertsFetchingRef = useRef(false)
   const isFirstPathnameRef = useRef(true)
+  const pendingAlertsRefreshModeRef = useRef<'summary' | 'full' | null>(null)
+  const scheduledAlertsRefreshRef = useRef<number | null>(null)
   const roleLabel = formatRoleLabel(role)
   const badgeLabel = role ? roleLabel : 'Workspace'
   const secondaryLabel = formatSecondaryLabel(role)
@@ -161,57 +165,54 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
 
   useEffect(() => {
     const controller = new AbortController()
-    void loadAlerts(controller.signal)
+    void requestAlertsRefresh({ mode: 'summary', signal: controller.signal, immediate: true })
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (scheduledAlertsRefreshRef.current !== null) {
+        window.clearTimeout(scheduledAlertsRefreshRef.current)
+      }
+    }
   }, [])
 
   useEffect(() => {
-    if (!alertsOpen || alertsFetchingRef.current) {
+    if (!alertsOpen) {
       return
     }
 
     const controller = new AbortController()
-    void loadAlerts(controller.signal)
+    void requestAlertsRefresh({ mode: 'full', signal: controller.signal, immediate: true })
 
     return () => controller.abort()
   }, [alertsOpen])
 
   useEffect(() => {
-    // Skip the initial run - the mount effect above already covers it, and
-    // this effect exists purely to catch up on route changes afterward
-    // (e.g. landing on a new incident's detail page right after creating
-    // it), so the badge doesn't require opening the bell to go stale-safe.
     if (isFirstPathnameRef.current) {
       isFirstPathnameRef.current = false
       return
     }
 
-    if (alertsFetchingRef.current) {
-      return
-    }
-
     const controller = new AbortController()
-    void loadAlerts(controller.signal)
+    void requestAlertsRefresh({
+      mode: alertsOpen ? 'full' : 'summary',
+      signal: controller.signal,
+      immediate: true,
+    })
 
     return () => controller.abort()
-  }, [pathname])
+  }, [alertsOpen, pathname])
 
   useEffect(() => {
     function handleVisibilityChange() {
-      if (document.visibilityState !== 'visible' || alertsFetchingRef.current) {
+      if (document.visibilityState !== 'visible') {
         return
       }
 
-      void loadAlerts()
+      void requestAlertsRefresh({ mode: alertsOpen ? 'full' : 'summary' })
     }
 
     function handleChromeRefresh() {
-      if (alertsFetchingRef.current) {
-        return
-      }
-
-      void loadAlerts()
+      void requestAlertsRefresh({ mode: alertsOpen ? 'full' : 'summary' })
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -223,7 +224,7 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
       window.removeEventListener('focus', handleVisibilityChange)
       window.removeEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
     }
-  }, [])
+  }, [alertsOpen])
 
   useEffect(() => {
     if (!alertsOpen) {
@@ -340,13 +341,25 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
     })
   }
 
-  async function loadAlerts(signal?: AbortSignal) {
+  const loadAlerts = useEffectEvent(async ({
+    signal,
+    mode,
+  }: {
+    signal?: AbortSignal
+    mode: 'summary' | 'full'
+  }) => {
+    if (alertsFetchingRef.current) {
+      pendingAlertsRefreshModeRef.current =
+        pendingAlertsRefreshModeRef.current === 'full' || mode === 'full' ? 'full' : 'summary'
+      return
+    }
+
     alertsFetchingRef.current = true
     setAlertsLoading(true)
     setAlertsError('')
 
     try {
-      const response = await fetch('/api/chrome/alerts', {
+      const response = await fetch(mode === 'summary' ? '/api/chrome/alerts?summary=1' : '/api/chrome/alerts', {
         signal,
         cache: 'no-store',
       })
@@ -370,8 +383,40 @@ export function AppTopbar({ onMenu, role = null, userDisplayName = null }: AppTo
       if (!signal?.aborted) {
         setAlertsLoading(false)
       }
+
+      const pendingMode = pendingAlertsRefreshModeRef.current
+      pendingAlertsRefreshModeRef.current = null
+
+      if (pendingMode && !signal?.aborted) {
+        void loadAlerts({ mode: pendingMode })
+      }
     }
-  }
+  })
+
+  const requestAlertsRefresh = useEffectEvent(async ({
+    mode,
+    signal,
+    immediate = false,
+  }: {
+    mode: 'summary' | 'full'
+    signal?: AbortSignal
+    immediate?: boolean
+  }) => {
+    if (scheduledAlertsRefreshRef.current !== null) {
+      window.clearTimeout(scheduledAlertsRefreshRef.current)
+      scheduledAlertsRefreshRef.current = null
+    }
+
+    if (immediate) {
+      await loadAlerts({ signal, mode })
+      return
+    }
+
+    scheduledAlertsRefreshRef.current = window.setTimeout(() => {
+      scheduledAlertsRefreshRef.current = null
+      void loadAlerts({ mode })
+    }, ALERTS_REFRESH_DEBOUNCE_MS)
+  })
 
   return (
     <>
@@ -722,4 +767,8 @@ function getInitials(value: string) {
     .map((part) => part.charAt(0).toUpperCase())
     .join('')
 }
+
+
+
+
 

@@ -27,7 +27,7 @@ export async function getCurrentCareHomeSidebarBadgeCounts(
     { count: activeResidentsCount, error: residentsError },
     { count: openTasksCount, error: tasksError },
     { count: medicationAlertsCount, error: medicationAlertsError },
-    { data: recentIncidents, error: incidentsError },
+    { count: recentIncidentsCount, error: incidentsError },
   ] = await measureServerStep(
     'supabase:sidebar-badge-counts',
     () =>
@@ -52,12 +52,9 @@ export async function getCurrentCareHomeSidebarBadgeCounts(
           .is('deleted_at', null),
         supabase
           .from('incidents')
-          .select('id')
+          .select('id', { count: 'exact', head: true })
           .eq('care_home_id', careHomeId)
-          .is('deleted_at', null)
-          .order('occurred_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(10),
+          .is('deleted_at', null),
       ]),
     { careHomeId }
   )
@@ -82,7 +79,7 @@ export async function getCurrentCareHomeSidebarBadgeCounts(
     activeResidentsCount: activeResidentsCount ?? 0,
     openTasksCount: openTasksCount ?? 0,
     medicationAlertsCount: medicationAlertsCount ?? 0,
-    recentIncidentsCount: recentIncidents?.length ?? 0,
+    recentIncidentsCount: Math.min(recentIncidentsCount ?? 0, 10),
   }
 }
 

@@ -9,6 +9,8 @@ import { CHROME_DATA_REFRESH_EVENT, dispatchChromeDataRefresh } from '@/app/lib/
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 import { EMPTY_SIDEBAR_BADGE_COUNTS, type SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 
+const SIDEBAR_REFRESH_DEBOUNCE_MS = 140
+
 interface AuthenticatedAppChromeContextValue extends AppChromeProps {
   badgeCounts: SidebarBadgeCounts
 }
@@ -39,12 +41,15 @@ export function AuthenticatedAppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [badgeCounts, setBadgeCounts] = useState<SidebarBadgeCounts>(EMPTY_SIDEBAR_BADGE_COUNTS)
   const badgeCountsFetchingRef = useRef(false)
+  const pendingBadgeCountsRefreshRef = useRef(false)
+  const scheduledBadgeCountsRefreshRef = useRef<number | null>(null)
 
   useEffect(() => {
     let active = true
 
     async function loadBadgeCounts() {
       if (badgeCountsFetchingRef.current) {
+        pendingBadgeCountsRefreshRef.current = true
         return
       }
 
@@ -89,7 +94,29 @@ export function AuthenticatedAppShell({
         }
       } finally {
         badgeCountsFetchingRef.current = false
+
+        if (pendingBadgeCountsRefreshRef.current && active) {
+          pendingBadgeCountsRefreshRef.current = false
+          void loadBadgeCounts()
+        }
       }
+    }
+
+    function requestBadgeCountsRefresh(immediate = false) {
+      if (scheduledBadgeCountsRefreshRef.current !== null) {
+        window.clearTimeout(scheduledBadgeCountsRefreshRef.current)
+        scheduledBadgeCountsRefreshRef.current = null
+      }
+
+      if (immediate) {
+        void loadBadgeCounts()
+        return
+      }
+
+      scheduledBadgeCountsRefreshRef.current = window.setTimeout(() => {
+        scheduledBadgeCountsRefreshRef.current = null
+        void loadBadgeCounts()
+      }, SIDEBAR_REFRESH_DEBOUNCE_MS)
     }
 
     function handleVisibilityChange() {
@@ -97,20 +124,23 @@ export function AuthenticatedAppShell({
         return
       }
 
-      void loadBadgeCounts()
+      requestBadgeCountsRefresh()
     }
 
     function handleChromeRefresh() {
-      void loadBadgeCounts()
+      requestBadgeCountsRefresh()
     }
 
-    void loadBadgeCounts()
+    requestBadgeCountsRefresh(true)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleVisibilityChange)
     window.addEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)
 
     return () => {
       active = false
+      if (scheduledBadgeCountsRefreshRef.current !== null) {
+        window.clearTimeout(scheduledBadgeCountsRefreshRef.current)
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleVisibilityChange)
       window.removeEventListener(CHROME_DATA_REFRESH_EVENT, handleChromeRefresh)

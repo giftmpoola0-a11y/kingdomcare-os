@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import { buildMedicationAlarmsPayload } from '@/app/lib/chrome-medication-alarms'
 import { measureServerStep } from '@/app/lib/perf'
-import type { TypedSupabaseClient } from '@/app/lib/supabase/shared'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-    const access = await getCurrentUserServerAccess(supabase)
+    const { supabase, access } = await measureServerStep(
+      'api:/api/chrome/medication-alarms:access',
+      () => getCurrentRequestSupabaseAccess()
+    )
 
     if (!access.isSignedIn) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })

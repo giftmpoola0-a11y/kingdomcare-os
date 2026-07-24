@@ -1,3 +1,6 @@
+import 'server-only'
+
+import { measureServerStep } from '@/app/lib/perf'
 import {
   getMedicationAlertUrgency,
   type MedicationAlertUrgency,
@@ -30,6 +33,16 @@ export interface MedicationAlarmsPayload {
   items: MedicationAlarmItem[]
 }
 
+interface MedicationAlertQueryRow {
+  id: string
+  resident_id: string | null
+  medication_id: string | null
+  message: string
+  severity: string
+  due_at: string | null
+  status: 'open' | 'reviewing'
+}
+
 export async function buildMedicationAlarmsPayload(
   supabase: TypedSupabaseClient,
   access: CurrentUserAccess
@@ -39,14 +52,29 @@ export async function buildMedicationAlarmsPayload(
   const actionHref = canManage ? '/medications' : CAREGIVER_STAFF_MEDICATIONS_HREF
   const actionLabel = canManage ? 'Open medications' : 'Open staff workspace'
 
-  const { data: alerts, error } = await supabase
-    .from('medication_alerts')
-    .select('id, resident_id, medication_id, message, severity, due_at, status')
-    .eq('care_home_id', access.careHomeId!)
-    .is('deleted_at', null)
-    .in('status', ['open', 'reviewing'])
-    .order('due_at', { ascending: true, nullsFirst: false })
-    .limit(ACTIVE_ALARM_LIMIT)
+  const alertsResponse = await measureServerStep<{
+    data: MedicationAlertQueryRow[] | null
+    error: { message: string } | null
+  }>(
+    'supabase:medication-alarms:alerts',
+    async () => {
+      const { data, error } = await supabase
+        .from('medication_alerts')
+        .select('id, resident_id, medication_id, message, severity, due_at, status')
+        .eq('care_home_id', access.careHomeId!)
+        .is('deleted_at', null)
+        .in('status', ['open', 'reviewing'])
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .limit(ACTIVE_ALARM_LIMIT)
+
+      return {
+        data: (data ?? null) as MedicationAlertQueryRow[] | null,
+        error: error ? { message: error.message } : null,
+      }
+    },
+    { careHomeId: access.careHomeId, canManage }
+  )
+  const { data: alerts, error } = alertsResponse
 
   if (error) {
     throw new Error(error.message)
@@ -70,31 +98,43 @@ export async function buildMedicationAlarmsPayload(
     if (canManage && alert.medication_id) medicationIds.add(alert.medication_id)
   }
 
-  const [residentNameById, medicationNameById] = await Promise.all([
-    loadResidentNames(supabase, access.careHomeId!, residentIds),
-    canManage
-      ? loadMedicationNames(supabase, access.careHomeId!, medicationIds)
-      : Promise.resolve(new Map<string, string>()),
-  ])
+  const [residentNameById, medicationNameById] = await measureServerStep(
+    'supabase:medication-alarms:lookups',
+    () =>
+      Promise.all([
+        loadResidentNames(supabase, access.careHomeId!, residentIds),
+        canManage
+          ? loadMedicationNames(supabase, access.careHomeId!, medicationIds)
+          : Promise.resolve(new Map<string, string>()),
+      ]),
+    {
+      careHomeId: access.careHomeId,
+      residentIds: residentIds.size,
+      medicationIds: medicationIds.size,
+      canManage,
+    }
+  )
 
-  const items: MedicationAlarmItem[] = activeAlerts.map((alert) => ({
-    id: alert.id,
-    residentId: alert.resident_id,
-    residentName: alert.resident_id ? residentNameById.get(alert.resident_id) ?? null : null,
-    medicationName:
-      canManage && alert.medication_id ? medicationNameById.get(alert.medication_id) ?? null : null,
-    message: alert.message,
-    severity: alert.severity,
-    dueAt: alert.due_at,
-    urgency: alert.urgency,
-  }))
-
-  return {
-    canManage,
-    actionHref,
-    actionLabel,
-    items,
-  }
+  return measureServerStep(
+    'supabase:medication-alarms:shape',
+    async () => ({
+      canManage,
+      actionHref,
+      actionLabel,
+      items: activeAlerts.map((alert) => ({
+        id: alert.id,
+        residentId: alert.resident_id,
+        residentName: alert.resident_id ? residentNameById.get(alert.resident_id) ?? null : null,
+        medicationName:
+          canManage && alert.medication_id ? medicationNameById.get(alert.medication_id) ?? null : null,
+        message: alert.message,
+        severity: alert.severity,
+        dueAt: alert.due_at,
+        urgency: alert.urgency,
+      })),
+    }),
+    { itemCount: activeAlerts.length, canManage }
+  )
 }
 
 async function loadResidentNames(
@@ -154,3 +194,5 @@ async function loadMedicationNames(
 
   return nameById
 }
+
+

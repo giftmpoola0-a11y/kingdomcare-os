@@ -3,11 +3,10 @@ import { APP_NAV_HREFS, canAccessAppNavLabel } from '@/app/lib/app-navigation'
 import { CAREGIVER_STAFF_MEDICATIONS_HREF } from '@/app/lib/chrome-medication-alarms'
 import { getMedicationAlertUrgency } from '@/app/lib/medicationReminders'
 import { measureServerStep } from '@/app/lib/perf'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
-import { getCurrentUserServerAccess } from '@/app/lib/supabase/server-access'
 import type { TypedSupabaseClient } from '@/app/lib/supabase/shared'
 import type { TablesInsert } from '@/app/lib/supabase/database.types'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,11 +34,8 @@ interface TopbarNotificationItem {
 
 interface AlertsPayload {
   totalCount: number
-  /** Count of open incidents + overdue tasks + medication alerts (role-gated). */
   attentionCount: number
-  /** Count of unchecked resident-addition notifications only. */
   unreadCount: number
-  /** attentionCount + unreadCount - what the bell badge number should show. */
   badgeCount: number
   items: TopbarNotificationItem[]
 }
@@ -50,21 +46,29 @@ interface ResidentAdditionRow {
   created_at: string
 }
 
-export async function GET() {
+interface BuildAlertsPayloadOptions {
+  includeItems?: boolean
+}
+
+export async function GET(request: Request) {
   try {
-    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-    const access = await getCurrentUserServerAccess(supabase)
+    const { supabase, access } = await measureServerStep(
+      'api:/api/chrome/alerts:access',
+      () => getCurrentRequestSupabaseAccess()
+    )
     const authErrorResponse = getAlertsAuthErrorResponse(access)
 
     if (authErrorResponse) {
       return authErrorResponse
     }
 
+    const includeItems = new URL(request.url).searchParams.get('summary') !== '1'
+
     return NextResponse.json(
       await measureServerStep(
         'api:/api/chrome/alerts:GET',
-        () => buildAlertsPayload(supabase, access),
-        { role: access.role }
+        () => buildAlertsPayload(supabase, access, { includeItems }),
+        { role: access.role, mode: includeItems ? 'full' : 'summary' }
       )
     )
   } catch (error) {
@@ -75,8 +79,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = (await getSupabaseServerClient()) as TypedSupabaseClient
-    const access = await getCurrentUserServerAccess(supabase)
+    const { supabase, access } = await measureServerStep(
+      'api:/api/chrome/alerts:access',
+      () => getCurrentRequestSupabaseAccess()
+    )
     const authErrorResponse = getAlertsAuthErrorResponse(access)
 
     if (authErrorResponse) {
@@ -120,7 +126,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       await measureServerStep(
         'api:/api/chrome/alerts:POST',
-        () => buildAlertsPayload(supabase, access),
+        () => buildAlertsPayload(supabase, access, { includeItems: true }),
         { role: access.role, keys: allowedKeys.length }
       )
     )
@@ -130,14 +136,19 @@ export async function POST(request: Request) {
   }
 }
 
-async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>, access: CurrentUserAccess): Promise<AlertsPayload> {
+async function buildAlertsPayload(
+  supabase: TypedSupabaseClient,
+  access: CurrentUserAccess,
+  options: BuildAlertsPayloadOptions = {}
+): Promise<AlertsPayload> {
+  const includeItems = options.includeItems !== false
   const taskAlertsEnabled = canAccessAppNavLabel(access.role, 'Tasks')
   const incidentAlertsEnabled = canAccessAppNavLabel(access.role, 'Incidents')
   const medicationAlertsEnabled = Boolean(access.role)
   const residentAdditionsEnabled = canAccessAppNavLabel(access.role, 'Residents')
   const nowIso = new Date().toISOString()
 
-  const overdueTasksPromise = taskAlertsEnabled
+  const overdueTasksPromise = includeItems && taskAlertsEnabled
     ? supabase
         .from('tasks')
         .select('id, resident_id, title, due_at')
@@ -149,7 +160,7 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
         .limit(TASK_ALERT_LIMIT)
     : Promise.resolve({ data: [], error: null })
 
-  const openIncidentsPromise = incidentAlertsEnabled
+  const openIncidentsPromise = includeItems && incidentAlertsEnabled
     ? supabase
         .from('incidents')
         .select('id, resident_id, incident_type, severity, occurred_at')
@@ -160,7 +171,7 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
         .limit(INCIDENT_ALERT_LIMIT)
     : Promise.resolve({ data: [], error: null })
 
-  const medicationAlertsPromise = medicationAlertsEnabled
+  const medicationAlertsPromise = includeItems && medicationAlertsEnabled
     ? supabase
         .from('medication_alerts')
         .select('id, resident_id, message, severity, due_at, status')
@@ -175,10 +186,6 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
     ? getRecentResidentAdditions(supabase, access)
     : Promise.resolve([])
 
-  // Exact counts for the badge number - queried separately from the
-  // display lists above because those lists are capped at TOTAL_LIMIT and
-  // would silently undercount the badge once a care home has more than a
-  // handful of active operational items.
   const overdueTasksCountPromise = taskAlertsEnabled
     ? supabase
         .from('tasks')
@@ -215,15 +222,20 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
     overdueTasksCountResponse,
     openIncidentsCountResponse,
     medicationAlertsCountResponse,
-  ] = await Promise.all([
-    overdueTasksPromise,
-    openIncidentsPromise,
-    medicationAlertsPromise,
-    recentResidentAdditionsPromise,
-    overdueTasksCountPromise,
-    openIncidentsCountPromise,
-    medicationAlertsCountPromise,
-  ])
+  ] = await measureServerStep(
+    'supabase:alerts:queries',
+    () =>
+      Promise.all([
+        overdueTasksPromise,
+        openIncidentsPromise,
+        medicationAlertsPromise,
+        recentResidentAdditionsPromise,
+        overdueTasksCountPromise,
+        openIncidentsCountPromise,
+        medicationAlertsCountPromise,
+      ]),
+    { careHomeId: access.careHomeId, includeItems }
+  )
 
   const firstError = [
     overdueTasksResponse.error,
@@ -243,6 +255,24 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
     (openIncidentsCountResponse.count ?? 0) +
     (medicationAlertsCountResponse.count ?? 0)
 
+  const residentKeys = recentResidentAdditions.map((resident) => buildResidentNotificationKey(resident))
+  const readKeys = residentKeys.length > 0 ? await getReadNotificationKeys(supabase, access.user!.id, residentKeys) : new Set<string>()
+
+  if (!includeItems) {
+    const unreadCount = recentResidentAdditions.reduce((count, resident) => {
+      const notificationKey = buildResidentNotificationKey(resident)
+      return readKeys.has(notificationKey) ? count : count + 1
+    }, 0)
+
+    return {
+      totalCount: 0,
+      attentionCount,
+      unreadCount,
+      badgeCount: attentionCount + unreadCount,
+      items: [],
+    }
+  }
+
   const residentIds = new Set<string>()
   for (const record of [
     ...(overdueTasksResponse.data ?? []),
@@ -254,111 +284,121 @@ async function buildAlertsPayload(supabase: Awaited<ReturnType<typeof getSupabas
     }
   }
 
-  const residentNameById = new Map<string, string>()
+  const residentNameById = residentIds.size > 0
+    ? await measureServerStep(
+        'supabase:alerts:resident-names',
+        async () => {
+          const { data: residents, error } = await supabase
+            .from('residents')
+            .select('id, full_name')
+            .eq('care_home_id', access.careHomeId!)
+            .is('deleted_at', null)
+            .in('id', Array.from(residentIds))
 
-  if (residentIds.size > 0) {
-    const { data: residents, error } = await supabase
-      .from('residents')
-      .select('id, full_name')
-      .eq('care_home_id', access.careHomeId!)
-      .is('deleted_at', null)
-      .in('id', Array.from(residentIds))
+          if (error) {
+            throw new Error(error.message)
+          }
 
-    if (error) {
-      throw new Error(error.message)
-    }
+          const residentMap = new Map<string, string>()
+          for (const resident of residents ?? []) {
+            residentMap.set(resident.id, resident.full_name)
+          }
 
-    for (const resident of residents ?? []) {
-      residentNameById.set(resident.id, resident.full_name)
-    }
-  }
+          return residentMap
+        },
+        { careHomeId: access.careHomeId, residentIds: residentIds.size }
+      )
+    : new Map<string, string>()
 
-  const operationalItems: TopbarNotificationItem[] = [
-    ...(overdueTasksResponse.data ?? []).map((task) => ({
-      id: task.id,
-      kind: 'task' as const,
-      group: 'operational' as const,
-      title: task.title,
-      subtitle: buildTaskAlertSubtitle(
-        task.due_at,
-        residentNameById.get(task.resident_id ?? '') ?? null,
-      ),
-      href: APP_NAV_HREFS.Tasks,
-      checked: false,
-      checkable: false,
-      notificationKey: null,
-      statusLabel: 'Needs attention',
-    })),
-    ...(openIncidentsResponse.data ?? []).map((incident) => ({
-      id: incident.id,
-      kind: 'incident' as const,
-      group: 'operational' as const,
-      title: incident.incident_type,
-      subtitle: buildIncidentAlertSubtitle(
-        incident.severity,
-        residentNameById.get(incident.resident_id ?? '') ?? null,
-      ),
-      href: `${APP_NAV_HREFS.Incidents}/${incident.id}`,
-      checked: false,
-      checkable: false,
-      notificationKey: null,
-      statusLabel: 'Needs attention',
-    })),
-    ...(medicationAlertsResponse.data ?? []).map((alert) => ({
-      id: alert.id,
-      kind: 'medication_alert' as const,
-      group: 'operational' as const,
-      title: alert.message,
-      subtitle: buildMedicationAlertSubtitle(
-        alert.severity,
-        residentNameById.get(alert.resident_id ?? '') ?? null,
-      ),
-      href:
-        access.role === 'caregiver'
-          ? CAREGIVER_STAFF_MEDICATIONS_HREF
-          : APP_NAV_HREFS.Medications,
-      checked: false,
-      checkable: false,
-      notificationKey: null,
-      statusLabel: buildMedicationAlertStatusLabel(alert.status, alert.due_at),
-    })),
-  ].slice(0, TOTAL_LIMIT)
+  return measureServerStep(
+    'supabase:alerts:shape',
+    async () => {
+      const operationalItems: TopbarNotificationItem[] = [
+        ...(overdueTasksResponse.data ?? []).map((task) => ({
+          id: task.id,
+          kind: 'task' as const,
+          group: 'operational' as const,
+          title: task.title,
+          subtitle: buildTaskAlertSubtitle(
+            task.due_at,
+            residentNameById.get(task.resident_id ?? '') ?? null,
+          ),
+          href: APP_NAV_HREFS.Tasks,
+          checked: false,
+          checkable: false,
+          notificationKey: null,
+          statusLabel: 'Needs attention',
+        })),
+        ...(openIncidentsResponse.data ?? []).map((incident) => ({
+          id: incident.id,
+          kind: 'incident' as const,
+          group: 'operational' as const,
+          title: incident.incident_type,
+          subtitle: buildIncidentAlertSubtitle(
+            incident.severity,
+            residentNameById.get(incident.resident_id ?? '') ?? null,
+          ),
+          href: `${APP_NAV_HREFS.Incidents}/${incident.id}`,
+          checked: false,
+          checkable: false,
+          notificationKey: null,
+          statusLabel: 'Needs attention',
+        })),
+        ...(medicationAlertsResponse.data ?? []).map((alert) => ({
+          id: alert.id,
+          kind: 'medication_alert' as const,
+          group: 'operational' as const,
+          title: alert.message,
+          subtitle: buildMedicationAlertSubtitle(
+            alert.severity,
+            residentNameById.get(alert.resident_id ?? '') ?? null,
+          ),
+          href:
+            access.role === 'caregiver'
+              ? CAREGIVER_STAFF_MEDICATIONS_HREF
+              : APP_NAV_HREFS.Medications,
+          checked: false,
+          checkable: false,
+          notificationKey: null,
+          statusLabel: buildMedicationAlertStatusLabel(alert.status, alert.due_at),
+        })),
+      ].slice(0, TOTAL_LIMIT)
 
-  const residentKeys = recentResidentAdditions.map((resident) => buildResidentNotificationKey(resident))
-  const readKeys = residentKeys.length > 0 ? await getReadNotificationKeys(supabase, access.user!.id, residentKeys) : new Set<string>()
+      const residentItems: TopbarNotificationItem[] = recentResidentAdditions.map((resident) => {
+        const notificationKey = buildResidentNotificationKey(resident)
+        const checked = readKeys.has(notificationKey)
 
-  const residentItems: TopbarNotificationItem[] = recentResidentAdditions.map((resident) => {
-    const notificationKey = buildResidentNotificationKey(resident)
-    const checked = readKeys.has(notificationKey)
+        return {
+          id: resident.id,
+          kind: 'resident',
+          group: 'resident',
+          title: `Resident added: ${resident.full_name}`,
+          subtitle: buildResidentAdditionSubtitle(resident.created_at),
+          href: `${APP_NAV_HREFS.Residents}/${resident.id}`,
+          checked,
+          checkable: true,
+          notificationKey,
+          statusLabel: checked ? 'Checked' : 'Unchecked',
+        }
+      })
 
-    return {
-      id: resident.id,
-      kind: 'resident',
-      group: 'resident',
-      title: `Resident added: ${resident.full_name}`,
-      subtitle: buildResidentAdditionSubtitle(resident.created_at),
-      href: `${APP_NAV_HREFS.Residents}/${resident.id}`,
-      checked,
-      checkable: true,
-      notificationKey,
-      statusLabel: checked ? 'Checked' : 'Unchecked',
-    }
-  })
+      const items = [...operationalItems, ...residentItems]
+      const unreadCount = residentItems.filter((item) => !item.checked).length
 
-  const items = [...operationalItems, ...residentItems]
-  const unreadCount = residentItems.filter((item) => !item.checked).length
-
-  return {
-    totalCount: items.length,
-    attentionCount,
-    unreadCount,
-    badgeCount: attentionCount + unreadCount,
-    items,
-  }
+      return {
+        totalCount: items.length,
+        attentionCount,
+        unreadCount,
+        badgeCount: attentionCount + unreadCount,
+        items,
+      }
+    },
+    { includeItems, residentItems: recentResidentAdditions.length }
+  )
 }
 
 async function getRecentResidentAdditions(
-  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  supabase: TypedSupabaseClient,
   access: CurrentUserAccess
 ) {
   return measureServerStep(
@@ -384,7 +424,7 @@ async function getRecentResidentAdditions(
 }
 
 async function getReadNotificationKeys(
-  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  supabase: TypedSupabaseClient,
   userId: string,
   notificationKeys: string[]
 ) {
@@ -477,13 +517,3 @@ function formatTimestamp(value: string) {
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
-
-
-
-
-
-
-
-
-
-
