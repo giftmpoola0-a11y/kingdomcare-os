@@ -1,11 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
+import { revalidatePath } from 'next/cache'
+import { logServerPerf, measureServerStep } from '@/app/lib/perf'
 import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
-import { getCurrentUserAccess } from '@/app/lib/supabase/access'
 import { createTask, type TaskPriority } from '@/app/lib/supabase/tasks'
-import { getSupabaseServerClient } from '@/app/lib/supabase/server'
+import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
 import { GENERAL_TASK_RESIDENT_VALUE, type TaskCreateFormState } from './form-state'
 
 const ALLOWED_PRIORITIES = new Set<TaskPriority>(['low', 'normal', 'high', 'urgent'])
@@ -14,8 +15,10 @@ export async function createTaskFromFormAction(
   _prevState: TaskCreateFormState,
   formData: FormData
 ): Promise<TaskCreateFormState> {
-  const supabase = await getSupabaseServerClient()
-  const access = await getCurrentUserAccess(supabase)
+  const startedAt = performance.now()
+  const { access } = await measureServerStep('action:create-task:access', async () =>
+    getCurrentRequestSupabaseAccess()
+  )
 
   if (!access.isSignedIn) {
     return {
@@ -78,14 +81,16 @@ export async function createTaskFromFormAction(
   }
 
   try {
-    await createTask({
-      title,
-      description,
-      residentId,
-      category,
-      priority,
-      dueAt,
-    })
+    await measureServerStep('action:create-task:insert', () =>
+      createTask({
+        title,
+        description,
+        residentId,
+        category,
+        priority,
+        dueAt,
+      })
+    )
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'Failed to save task. Please try again.',
@@ -93,9 +98,21 @@ export async function createTaskFromFormAction(
     }
   }
 
-  revalidatePath('/tasks')
-  revalidatePath('/staff')
-  revalidatePath('/')
+  after(() => {
+    const revalidationStartedAt = performance.now()
+    revalidatePath('/tasks')
+    revalidatePath('/staff')
+    revalidatePath('/')
+    logServerPerf('action:create-task:revalidate-paths', performance.now() - revalidationStartedAt, {
+      paths: ['/tasks', '/staff', '/'],
+    })
+  })
+
+  logServerPerf('action:create-task:redirect', 0, {
+    location: '/tasks',
+  })
+  logServerPerf('action:create-task:total', performance.now() - startedAt)
+
   redirect('/tasks')
 }
 

@@ -3,10 +3,10 @@
 import { useMemo, useState, useTransition } from 'react'
 import { AlertTriangle, CheckCircle2, ClipboardList, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
 import { cn } from '@/lib/utils'
+import { dispatchChromeDataRefresh } from '@/app/lib/chrome-realtime'
 import { clearCompletedTasksAction, deleteTaskAction, toggleTaskCompletionAction } from './actions'
 
 const FILTER_OPTIONS = ['Today', 'Pending', 'Completed', 'All'] as const
@@ -26,7 +26,6 @@ export default function TasksClient({
   canManageTasks,
   loadError,
 }: TasksClientProps) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<TaskFilter>('Pending')
   const [actionError, setActionError] = useState('')
@@ -102,7 +101,7 @@ export default function TasksClient({
         return
       }
 
-      router.refresh()
+      dispatchChromeDataRefresh({ source: 'tasks' })
     })
   }
 
@@ -122,7 +121,7 @@ export default function TasksClient({
         setActionError(result.error)
         return
       }
-      router.refresh()
+      dispatchChromeDataRefresh({ source: 'tasks' })
     })
   }
 
@@ -140,7 +139,7 @@ export default function TasksClient({
         setActionError(result.error)
         return
       }
-      router.refresh()
+      dispatchChromeDataRefresh({ source: 'tasks' })
     })
   }
 
@@ -428,6 +427,7 @@ function formatDue(dueAt: string | null) {
     minute: '2-digit',
   })
 }
+
 
 
 

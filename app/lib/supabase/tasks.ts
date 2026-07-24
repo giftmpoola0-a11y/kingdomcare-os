@@ -5,7 +5,7 @@ import { TASK_CATEGORIES, type TaskCategory } from '@/app/lib/taskTypes'
 import { type CurrentUserAccess } from '@/app/lib/supabase/access'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/app/lib/supabase/database.types'
 import { getCurrentRequestSupabaseAccess } from '@/app/lib/supabase/request-context'
-import { measureServerStep } from '@/app/lib/perf'
+import { logServerPerf, measureServerStep } from '@/app/lib/perf'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 type TaskRow = Tables<'tasks'>
@@ -115,7 +115,12 @@ export async function getOpenCurrentCareHomeTasks(): Promise<TaskRecord[]> {
   return data.map((row) => mapTaskRowToRecord(row))
 }
 
-export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
+export interface CreateTaskResult {
+  id: string
+}
+
+export async function createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
+  const taskCreateStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
   const { supabase, careHomeId, userId } = await getTaskContext('create')
   const title = input.title.trim()
 
@@ -126,7 +131,11 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
   const residentId = normalizeOptionalText(input.residentId)
 
   if (residentId) {
-    const resident = await getResidentRowById(supabase, careHomeId, residentId)
+    const resident = await measureServerStep(
+      'supabase:tasks:create:resident-validation',
+      () => getResidentRowById(supabase, careHomeId, residentId),
+      { careHomeId, residentId }
+    )
 
     if (!resident) {
       throw new Error('Resident selection is invalid.')
@@ -146,13 +155,31 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
     deleted_at: null,
   }
 
-  const { data, error } = await supabase.from('tasks').insert(payload).select('*').single()
+  const data = await measureServerStep(
+    'supabase:tasks:create:insert',
+    async () => {
+      const { data, error } = await supabase.from('tasks').insert(payload).select('id').single()
 
-  if (error) {
-    throw new Error(error.message)
-  }
+      if (error) {
+        throw new Error(error.message)
+      }
 
-  return mapTaskRowToRecord(data)
+      return data
+    },
+    {
+      careHomeId,
+      hasResidentId: Boolean(residentId),
+      hasDueAt: Boolean(payload.due_at),
+      hasDescription: Boolean(input.description),
+    }
+  )
+
+  logServerPerf('supabase:tasks:create:total', (typeof performance !== 'undefined' ? performance.now() : Date.now()) - taskCreateStartedAt, {
+    careHomeId,
+    hasResidentId: Boolean(residentId),
+  })
+
+  return { id: data.id }
 }
 
 export async function updateTask(input: UpdateTaskInput): Promise<TaskRecord> {
@@ -495,6 +522,7 @@ function normalizeTaskCategory(category: string | null | undefined): TaskCategor
     ? (category as TaskCategory)
     : 'Other'
 }
+
 
 
 
