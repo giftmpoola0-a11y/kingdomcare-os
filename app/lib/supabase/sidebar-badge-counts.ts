@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { measureServerStep } from '@/app/lib/perf'
+import { loadDashboardCounts } from '@/app/lib/dashboard/snapshot'
 import {
   EMPTY_SIDEBAR_BADGE_COUNTS,
   type SidebarBadgeCounts,
@@ -22,64 +23,19 @@ export async function getCurrentCareHomeSidebarBadgeCounts(
   }
 
   const careHomeId = resolvedAccess.careHomeId
+  const role = resolvedAccess.membership?.role ?? resolvedAccess.role ?? 'caregiver'
 
-  const [
-    { count: activeResidentsCount, error: residentsError },
-    { count: openTasksCount, error: tasksError },
-    { count: medicationAlertsCount, error: medicationAlertsError },
-    { count: recentIncidentsCount, error: incidentsError },
-  ] = await measureServerStep(
+  const counts = await measureServerStep(
     'supabase:sidebar-badge-counts',
-    () =>
-      Promise.all([
-        supabase
-          .from('residents')
-          .select('id', { count: 'exact', head: true })
-          .eq('care_home_id', careHomeId)
-          .eq('status', 'active')
-          .is('deleted_at', null),
-        supabase
-          .from('tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('care_home_id', careHomeId)
-          .in('status', ['open', 'in_progress'])
-          .is('deleted_at', null),
-        supabase
-          .from('medication_alerts')
-          .select('id', { count: 'exact', head: true })
-          .eq('care_home_id', careHomeId)
-          .in('status', ['open', 'reviewing'])
-          .is('deleted_at', null),
-        supabase
-          .from('incidents')
-          .select('id', { count: 'exact', head: true })
-          .eq('care_home_id', careHomeId)
-          .is('deleted_at', null),
-      ]),
-    { careHomeId }
+    () => loadDashboardCounts({ supabase, careHomeId, role }),
+    { careHomeId, role }
   )
 
-  if (residentsError) {
-    throw new Error(residentsError.message)
-  }
-
-  if (tasksError) {
-    throw new Error(tasksError.message)
-  }
-
-  if (medicationAlertsError) {
-    throw new Error(medicationAlertsError.message)
-  }
-
-  if (incidentsError) {
-    throw new Error(incidentsError.message)
-  }
-
   return {
-    activeResidentsCount: activeResidentsCount ?? 0,
-    openTasksCount: openTasksCount ?? 0,
-    medicationAlertsCount: medicationAlertsCount ?? 0,
-    recentIncidentsCount: Math.min(recentIncidentsCount ?? 0, 10),
+    activeResidentsCount: counts.activeResidentsCount,
+    openTasksCount: counts.openTasksCount,
+    medicationAlertsCount: counts.medicationAlertsCount,
+    recentIncidentsCount: counts.openIncidentsCount,
   }
 }
 

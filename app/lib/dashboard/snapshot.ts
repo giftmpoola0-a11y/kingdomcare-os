@@ -24,6 +24,14 @@ import {
   normalizeDashboardCareTeamMember,
 } from '@/app/(app)/dashboard-deferred-content'
 
+export interface DashboardCounts {
+  activeResidentsCount: number
+  openTasksCount: number
+  overdueTasksCount: number
+  openIncidentsCount: number
+  medicationAlertsCount: number
+}
+
 export interface DashboardSnapshot {
   activeResidentsCount: number
   openTasksCount: number
@@ -37,6 +45,36 @@ export interface DashboardSnapshot {
   fetchedAt: string
 }
 
+export async function loadDashboardCounts({
+  supabase,
+  careHomeId,
+  role,
+}: {
+  supabase: TypedSupabaseClient
+  careHomeId: string
+  role: MembershipRole
+}): Promise<DashboardCounts> {
+  const canSeeMedications = role === 'admin' || role === 'nurse'
+  const nowIso = new Date().toISOString()
+
+  const [activeResidentsCount, openTasksCount, overdueTasksCount, openIncidentsCount, medicationAlertsCount] =
+    await Promise.all([
+      loadActiveResidentsCount(supabase, careHomeId),
+      loadOpenTasksCount(supabase, careHomeId),
+      loadOverdueTasksCount(supabase, careHomeId, nowIso),
+      loadOpenIncidentsCount(supabase, careHomeId),
+      canSeeMedications ? loadOpenMedicationAlertsCount(supabase, careHomeId) : Promise.resolve(0),
+    ])
+
+  return {
+    activeResidentsCount,
+    openTasksCount,
+    overdueTasksCount,
+    openIncidentsCount,
+    medicationAlertsCount,
+  }
+}
+
 export async function loadDashboardSnapshot({
   supabase,
   careHomeId,
@@ -48,28 +86,9 @@ export async function loadDashboardSnapshot({
 }): Promise<DashboardSnapshot> {
   const canSeeMedications = role === 'admin' || role === 'nurse'
   const canSeeCareTeam = role === 'admin' || role === 'nurse'
-  const nowIso = new Date().toISOString()
 
-  const [
-    activeResidentsCount,
-    openTasksCount,
-    overdueTasksCount,
-    openIncidentsCount,
-    openTasks,
-    openIncidents,
-    openMedicationAlerts,
-    recentShiftReports,
-    recentResidents,
-    recentTasks,
-    recentIncidents,
-    recentMedications,
-    recentMedicationAlerts,
-    careTeamMembers,
-  ] = await Promise.all([
-    loadActiveResidentsCount(supabase, careHomeId),
-    loadOpenTasksCount(supabase, careHomeId),
-    loadOverdueTasksCount(supabase, careHomeId, nowIso),
-    loadOpenIncidentsCount(supabase, careHomeId),
+  const [counts, openTasks, openIncidents, openMedicationAlerts, recentShiftReports, recentResidents, recentTasks, recentIncidents, recentMedications, recentMedicationAlerts, careTeamMembers] = await Promise.all([
+    loadDashboardCounts({ supabase, careHomeId, role }),
     loadOpenTasks(supabase, careHomeId),
     loadOpenIncidents(supabase, careHomeId),
     canSeeMedications ? loadOpenMedicationAlerts(supabase, careHomeId) : Promise.resolve([]),
@@ -81,6 +100,8 @@ export async function loadDashboardSnapshot({
     canSeeMedications ? loadRecentMedicationAlerts(supabase, careHomeId) : Promise.resolve([]),
     canSeeCareTeam ? loadCareTeamMembers(supabase, careHomeId) : Promise.resolve([]),
   ])
+
+  const { activeResidentsCount, openTasksCount, overdueTasksCount, openIncidentsCount } = counts
 
   const residentNameById = await loadResidentNameMap(supabase, careHomeId, [
     ...openTasks.map((task) => task.residentId),
@@ -164,6 +185,18 @@ async function loadOverdueTasksCount(supabase: TypedSupabaseClient, careHomeId: 
 async function loadOpenIncidentsCount(supabase: TypedSupabaseClient, careHomeId: string) {
   const { count, error } = await supabase
     .from('incidents')
+    .select('id', { count: 'exact', head: true })
+    .eq('care_home_id', careHomeId)
+    .in('status', ['open', 'reviewing'])
+    .is('deleted_at', null)
+
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+async function loadOpenMedicationAlertsCount(supabase: TypedSupabaseClient, careHomeId: string) {
+  const { count, error } = await supabase
+    .from('medication_alerts')
     .select('id', { count: 'exact', head: true })
     .eq('care_home_id', careHomeId)
     .in('status', ['open', 'reviewing'])
