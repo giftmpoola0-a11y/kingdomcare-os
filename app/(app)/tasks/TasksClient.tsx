@@ -3,6 +3,17 @@
 import { useMemo, useState, useTransition } from 'react'
 import { AlertTriangle, CheckCircle2, ClipboardList, Plus, Trash2 } from 'lucide-react'
 import Link from 'next/link'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { dashboardFont } from '@/app/lib/dashboard-font'
 import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import type { TaskRecord } from '@/app/lib/supabase/tasks'
 import { cn } from '@/lib/utils'
@@ -12,6 +23,25 @@ import { clearCompletedTasksAction, deleteTaskAction, toggleTaskCompletionAction
 const FILTER_OPTIONS = ['Today', 'Pending', 'Completed', 'All'] as const
 
 type TaskFilter = (typeof FILTER_OPTIONS)[number]
+
+type PendingConfirmation =
+  | {
+      kind: 'delete-task'
+      title: string
+      description: string
+      confirmLabel: string
+      pendingLabel: string
+      itemLabel: string
+      taskId: string
+    }
+  | {
+      kind: 'clear-completed'
+      title: string
+      description: string
+      confirmLabel: string
+      pendingLabel: string
+      itemLabel: string
+    }
 
 export interface TasksClientProps {
   initialTasks: TaskRecord[]
@@ -31,10 +61,8 @@ export default function TasksClient({
   const [actionError, setActionError] = useState('')
   const [tasks, setTasks] = useState(initialTasks)
   const [syncedInitialTasks, setSyncedInitialTasks] = useState(initialTasks)
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null)
 
-  // Resync local (optimistically-updated) task state when the server sends
-  // fresh props, e.g. after router.refresh(). Adjusting state during render
-  // (rather than in an effect) avoids an extra render/commit cycle.
   if (initialTasks !== syncedInitialTasks) {
     setSyncedInitialTasks(initialTasks)
     setTasks(initialTasks)
@@ -75,8 +103,6 @@ export default function TasksClient({
     setActionError('')
     const wasCompleted = task.status === 'completed'
 
-    // Update the UI immediately so completion feels instant; reconcile with
-    // the server in the background instead of waiting on a full refresh.
     setTasks((current) =>
       current.map((item) =>
         item.id === task.id
@@ -105,31 +131,69 @@ export default function TasksClient({
     })
   }
 
-  function handleDeleteTask(id: string) {
-    if (!window.confirm('Delete this task?')) return
-
+  function handleDeleteTask(task: TaskRecord) {
     setActionError('')
-    const removedTask = tasks.find((item) => item.id === id) ?? null
-    setTasks((current) => current.filter((item) => item.id !== id))
-
-    startTransition(async () => {
-      const result = await deleteTaskAction(id)
-      if (!result.success) {
-        if (removedTask) {
-          setTasks((current) => [...current, removedTask])
-        }
-        setActionError(result.error)
-        return
-      }
-      dispatchChromeDataRefresh({ source: 'tasks' })
+    setPendingConfirmation({
+      kind: 'delete-task',
+      title: 'Delete task?',
+      description: 'This task will be removed from the active task list. Historical task records remain managed on the server side.',
+      confirmLabel: 'Delete task',
+      pendingLabel: 'Deleting...',
+      itemLabel: task.title,
+      taskId: task.id,
     })
   }
 
   function handleClearCompleted() {
-    if (!window.confirm('Archive completed tasks from this view?')) return
+    const completedCount = visibleTasks.filter((task) => task.status === 'completed').length
 
     setActionError('')
+    setPendingConfirmation({
+      kind: 'clear-completed',
+      title: 'Clear completed tasks?',
+      description: 'Completed tasks will be cleared from the active task list and archived from this view.',
+      confirmLabel: 'Clear completed',
+      pendingLabel: 'Clearing...',
+      itemLabel:
+        completedCount === 1
+          ? '1 completed task'
+          : `${completedCount} completed tasks`,
+    })
+  }
+
+  function handleConfirmationOpenChange(open: boolean) {
+    if (open || isPending) return
+    setPendingConfirmation(null)
+    setActionError('')
+  }
+
+  function handleConfirmationConfirm() {
+    if (!pendingConfirmation) {
+      return
+    }
+
+    if (pendingConfirmation.kind === 'delete-task') {
+      const previousTasks = tasks
+      setActionError('')
+      setPendingConfirmation(null)
+      setTasks((current) => current.filter((item) => item.id !== pendingConfirmation.taskId))
+
+      startTransition(async () => {
+        const result = await deleteTaskAction(pendingConfirmation.taskId)
+        if (!result.success) {
+          setTasks(previousTasks)
+          setActionError(result.error)
+          return
+        }
+        dispatchChromeDataRefresh({ source: 'tasks' })
+      })
+
+      return
+    }
+
     const previousTasks = tasks
+    setActionError('')
+    setPendingConfirmation(null)
     setTasks((current) => current.filter((item) => item.status !== 'completed'))
 
     startTransition(async () => {
@@ -145,191 +209,243 @@ export default function TasksClient({
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:px-6 lg:py-8">
-          <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-3xl">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-amber-500/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200 ring-1 ring-amber-400/20">
-                  <span className="inline-flex size-2 rounded-full bg-amber-400" aria-hidden="true" />
-                  Tasks Workspace
-                </div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  Daily Tasks
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  Track house duties, resident activities, and follow-ups using real Supabase-backed tasks.
-                </p>
-              </div>
-
-              {canManageTasks && (
-                <div className="flex flex-wrap gap-3">
-                  <Link
-                    href="/tasks/new"
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                  >
-                    <Plus className="size-4" />
-                    Create Task
-                  </Link>
-                  {visibleTasks.some((task) => task.status === 'completed') && (
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={handleClearCompleted}
-                      className="inline-flex items-center justify-center rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Clear Completed
-                    </button>
-                  )}
-                </div>
-              )}
+      <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-amber-500/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200 ring-1 ring-amber-400/20">
+              <span className="inline-flex size-2 rounded-full bg-amber-400" aria-hidden="true" />
+              Tasks Workspace
             </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <SummaryCard label="Tasks today" value={summary.tasksToday} tone="gray" />
-              <SummaryCard label="Pending" value={summary.pending} tone="amber" />
-              <SummaryCard label="Completed today" value={summary.completedToday} tone="green" />
-              <SummaryCard label="Urgent pending" value={summary.urgentPending} tone="red" />
-            </div>
-          </section>
-
-          {(loadError || actionError) && (
-            <p
-              role="alert"
-              className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
-            >
-              {loadError ?? actionError}
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              Daily Tasks
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Track house duties, resident activities, and follow-ups using real Supabase-backed tasks.
             </p>
-          )}
-
-          <div className="mt-6">
-            <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
-              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Task List</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} shown
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {FILTER_OPTIONS.map((option) => {
-                    const active = filter === option
-
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => setFilter(option)}
-                        className={cn(
-                          'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
-                          active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'border border-border bg-background/70 text-muted-foreground hover:bg-accent hover:text-foreground',
-                        )}
-                      >
-                        {option}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {filteredTasks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border bg-background/60 p-8 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {getEmptyStateMessage(filter, visibleTasks.length > 0)}
-                  </p>
-                  {canManageTasks && visibleTasks.length === 0 ? (
-                    <Link
-                      href="/tasks/new"
-                      className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                    >
-                      <Plus className="size-4" />
-                      Create the first task
-                    </Link>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredTasks.map((task) => {
-                    const residentName = task.residentId
-                      ? activeResidents.find((resident) => resident.id === task.residentId)?.name ??
-                        'Resident record unavailable'
-                      : null
-                    const isCompleted = task.status === 'completed'
-                    const isUrgent = task.priority === 'urgent'
-
-                    return (
-                      <article
-                        key={task.id}
-                        className={cn(
-                          'rounded-2xl border p-4 transition-colors',
-                          isCompleted
-                            ? 'border-emerald-400/20 bg-emerald-500/8'
-                            : isUrgent
-                              ? 'border-rose-400/20 bg-card'
-                              : 'border-border bg-background/60',
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleToggleComplete(task)}
-                            className={cn(
-                              'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-60',
-                              isCompleted
-                                ? 'border-emerald-400 bg-emerald-400 text-emerald-950'
-                                : 'border-amber-400/45 bg-amber-500/10 text-amber-300',
-                            )}
-                            aria-label={`Mark ${task.title} as ${isCompleted ? 'incomplete' : 'complete'}`}
-                          >
-                            {isCompleted ? <CheckCircle2 className="size-3.5" /> : <span className="size-2 rounded-full bg-current" />}
-                          </button>
-
-                          <div className="min-w-0 flex-1 space-y-3">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className={cn('text-sm font-semibold text-foreground', isCompleted && 'line-through text-muted-foreground')}>
-                                    {task.title}
-                                  </h3>
-                                  <TaskStatusBadge task={task} />
-                                  <TaskPriorityBadge priority={task.priority} />
-                                  <span className="rounded-full border border-border bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
-                                    {task.category}
-                                  </span>
-                                </div>
-                                <p className="mt-1 text-xs text-muted-foreground">Due {formatDue(task.dueAt)}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {residentName ? `Resident: ${residentName}` : 'General house task'}
-                                </p>
-                              </div>
-
-                              {canManageTasks && (
-                                <button
-                                  type="button"
-                                  disabled={isPending}
-                                  onClick={() => handleDeleteTask(task.id)}
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 transition-colors hover:text-rose-200 disabled:opacity-60"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-
-                            {task.description && (
-                              <p className="text-sm leading-relaxed text-muted-foreground">{task.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
           </div>
+
+          {canManageTasks && (
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/tasks/new"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              >
+                <Plus className="size-4" />
+                Create Task
+              </Link>
+              {visibleTasks.some((task) => task.status === 'completed') && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleClearCompleted}
+                  className="inline-flex items-center justify-center rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Clear Completed
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Tasks today" value={summary.tasksToday} tone="gray" />
+          <SummaryCard label="Pending" value={summary.pending} tone="amber" />
+          <SummaryCard label="Completed today" value={summary.completedToday} tone="green" />
+          <SummaryCard label="Urgent pending" value={summary.urgentPending} tone="red" />
+        </div>
+      </section>
+
+      {(loadError || actionError) && (
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
+        >
+          {loadError ?? actionError}
+        </p>
+      )}
+
+      <div className="mt-6">
+        <section className="rounded-3xl border border-border bg-card/95 p-6 shadow-sm sm:p-7">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Task List</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} shown
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {FILTER_OPTIONS.map((option) => {
+                const active = filter === option
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setFilter(option)}
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-border bg-background/70 text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {filteredTasks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-background/60 p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                {getEmptyStateMessage(filter, visibleTasks.length > 0)}
+              </p>
+              {canManageTasks && visibleTasks.length === 0 ? (
+                <Link
+                  href="/tasks/new"
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="size-4" />
+                  Create the first task
+                </Link>
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredTasks.map((task) => {
+                const residentName = task.residentId
+                  ? activeResidents.find((resident) => resident.id === task.residentId)?.name ??
+                    'Resident record unavailable'
+                  : null
+                const isCompleted = task.status === 'completed'
+                const isUrgent = task.priority === 'urgent'
+
+                return (
+                  <article
+                    key={task.id}
+                    className={cn(
+                      'rounded-2xl border p-4 transition-colors',
+                      isCompleted
+                        ? 'border-emerald-400/20 bg-emerald-500/8'
+                        : isUrgent
+                          ? 'border-rose-400/20 bg-card'
+                          : 'border-border bg-background/60',
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleToggleComplete(task)}
+                        className={cn(
+                          'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-60',
+                          isCompleted
+                            ? 'border-emerald-400 bg-emerald-400 text-emerald-950'
+                            : 'border-amber-400/45 bg-amber-500/10 text-amber-300',
+                        )}
+                        aria-label={`Mark ${task.title} as ${isCompleted ? 'incomplete' : 'complete'}`}
+                      >
+                        {isCompleted ? <CheckCircle2 className="size-3.5" /> : <span className="size-2 rounded-full bg-current" />}
+                      </button>
+
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className={cn('text-sm font-semibold text-foreground', isCompleted && 'line-through text-muted-foreground')}>
+                                {task.title}
+                              </h3>
+                              <TaskStatusBadge task={task} />
+                              <TaskPriorityBadge priority={task.priority} />
+                              <span className="rounded-full border border-border bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
+                                {task.category}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">Due {formatDue(task.dueAt)}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {residentName ? `Resident: ${residentName}` : 'General house task'}
+                            </p>
+                          </div>
+
+                          {canManageTasks && (
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleDeleteTask(task)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 transition-colors hover:text-rose-200 disabled:opacity-60"
+                            >
+                              <Trash2 className="size-3.5" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+
+                        {task.description && (
+                          <p className="text-sm leading-relaxed text-muted-foreground">{task.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <AlertDialog open={pendingConfirmation !== null} onOpenChange={handleConfirmationOpenChange}>
+        <AlertDialogContent
+          className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+        >
+          <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+              <Trash2 className="size-3.5" />
+              {pendingConfirmation?.kind === 'clear-completed' ? 'Clear completed' : 'Delete task'}
+            </div>
+            <AlertDialogTitle className="text-2xl tracking-tight text-foreground">
+              {pendingConfirmation?.title}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <span className="block">{pendingConfirmation?.description}</span>
+              <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                {pendingConfirmation?.itemLabel}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+            {actionError && (
+              <p
+                role="alert"
+                className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200"
+              >
+                {actionError}
+              </p>
+            )}
+
+            <AlertDialogFooter className={cn(actionError && 'mt-4')}>
+              <AlertDialogCancel
+                disabled={isPending}
+                className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isPending}
+                onClick={(event) => {
+                  event.preventDefault()
+                  handleConfirmationConfirm()
+                }}
+                className="rounded-xl border border-rose-400/30 bg-rose-500/18 px-5 py-2.5 text-sm font-semibold text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] transition-colors hover:bg-rose-500/28 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? pendingConfirmation?.pendingLabel : pendingConfirmation?.confirmLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }
@@ -389,8 +505,6 @@ function TaskStatusBadge({ task }: { task: TaskRecord }) {
 }
 
 function TaskPriorityBadge({ priority }: { priority: TaskRecord['priority'] }) {
-  // Urgent already surfaces via TaskStatusBadge; normal is the unremarkable
-  // default, so only low/high need a distinct call-out here.
   if (priority === 'high') {
     return <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-orange-300 ring-1 ring-orange-400/35">High priority</span>
   }
@@ -427,7 +541,3 @@ function formatDue(dueAt: string | null) {
     minute: '2-digit',
   })
 }
-
-
-
-
