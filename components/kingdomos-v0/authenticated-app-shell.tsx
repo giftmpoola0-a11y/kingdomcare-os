@@ -5,11 +5,23 @@ import { AppSidebar } from '@/components/kingdomos-v0/app-sidebar'
 import { AppTopbar } from '@/components/kingdomos-v0/app-topbar'
 import { MedicationAlarm } from '@/components/kingdomos-v0/medication-alarm'
 import type { AppChromeProps } from '@/app/lib/app-chrome'
-import { CHROME_DATA_REFRESH_EVENT, dispatchChromeDataRefresh } from '@/app/lib/chrome-realtime'
+import {
+  CHROME_DATA_REFRESH_EVENT,
+  dispatchChromeDataRefresh,
+  type ChromeDataRefreshSource,
+} from '@/app/lib/chrome-realtime'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 import { EMPTY_SIDEBAR_BADGE_COUNTS, type SidebarBadgeCounts } from '@/app/lib/sidebar-badge-counts'
 
 const SIDEBAR_REFRESH_DEBOUNCE_MS = 140
+
+const REALTIME_REFRESH_TABLES: Array<{ table: string; source: ChromeDataRefreshSource }> = [
+  { table: 'tasks', source: 'tasks' },
+  { table: 'incidents', source: 'incidents' },
+  { table: 'medication_alerts', source: 'medication-alerts' },
+  { table: 'shift_reports', source: 'shift-reports' },
+  { table: 'residents', source: 'residents' },
+]
 
 interface AuthenticatedAppChromeContextValue extends AppChromeProps {
   badgeCounts: SidebarBadgeCounts
@@ -153,32 +165,20 @@ export function AuthenticatedAppShell({
     }
 
     const supabase = getSupabaseBrowserClient()
-    const channel = supabase
-      .channel(`chrome-medication-alerts:${careHomeId}`)
-      .on(
+    const channel = REALTIME_REFRESH_TABLES.reduce((currentChannel, config) => {
+      return currentChannel.on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
-          table: 'medication_alerts',
+          table: config.table,
           filter: `care_home_id=eq.${careHomeId}`,
         },
         () => {
-          dispatchChromeDataRefresh({ source: 'medication-alerts', careHomeId })
+          dispatchChromeDataRefresh({ source: config.source, careHomeId })
         },
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'medication_alerts',
-          filter: `care_home_id=eq.${careHomeId}`,
-        },
-        () => {
-          dispatchChromeDataRefresh({ source: 'medication-alerts', careHomeId })
-        },
-      )
+    }, supabase.channel(`chrome-data:${careHomeId}`))
 
     void channel.subscribe()
 

@@ -230,7 +230,7 @@ function DashboardCardFallback({
   )
 }
 
-async function loadResidentNameMap(
+export async function loadResidentNameMap(
   supabase: TypedSupabaseClient,
   careHomeId: string,
   residentIds: Array<string | null | undefined>
@@ -259,7 +259,7 @@ async function loadResidentNameMap(
   return new Map((data ?? []).map((resident) => [resident.id, resident.full_name]))
 }
 
-async function loadRecentResidents(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentResidents(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('residents')
     .select('id, full_name, status, created_at, updated_at')
@@ -275,7 +275,7 @@ async function loadRecentResidents(supabase: TypedSupabaseClient, careHomeId: st
   return (data ?? []).map((row) => mapRecentResidentRowToActivity(row as ResidentActivityRow))
 }
 
-async function loadRecentTasks(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentTasks(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
@@ -292,7 +292,7 @@ async function loadRecentTasks(supabase: TypedSupabaseClient, careHomeId: string
   return (data ?? []).map(mapTaskRowToRecord)
 }
 
-async function loadOpenTasks(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadOpenTasks(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
@@ -310,7 +310,7 @@ async function loadOpenTasks(supabase: TypedSupabaseClient, careHomeId: string) 
   return (data ?? []).map(mapTaskRowToRecord)
 }
 
-async function loadRecentIncidents(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentIncidents(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('incidents')
     .select('*')
@@ -327,7 +327,7 @@ async function loadRecentIncidents(supabase: TypedSupabaseClient, careHomeId: st
   return (data ?? []).map(mapIncidentRowToRecord)
 }
 
-async function loadOpenIncidents(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadOpenIncidents(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('incidents')
     .select('*')
@@ -345,7 +345,7 @@ async function loadOpenIncidents(supabase: TypedSupabaseClient, careHomeId: stri
   return (data ?? []).map(mapIncidentRowToRecord)
 }
 
-async function loadRecentShiftReports(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentShiftReports(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('shift_reports')
     .select('*')
@@ -362,7 +362,7 @@ async function loadRecentShiftReports(supabase: TypedSupabaseClient, careHomeId:
   return (data ?? []).map(mapShiftReportRowToRecord)
 }
 
-async function loadRecentMedications(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentMedications(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('medications')
     .select('*')
@@ -379,7 +379,7 @@ async function loadRecentMedications(supabase: TypedSupabaseClient, careHomeId: 
   return (data ?? []).map(mapMedicationRowToRecord)
 }
 
-async function loadRecentMedicationAlerts(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadRecentMedicationAlerts(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('medication_alerts')
     .select('*')
@@ -396,7 +396,7 @@ async function loadRecentMedicationAlerts(supabase: TypedSupabaseClient, careHom
   return (data ?? []).map(mapMedicationAlertRowToRecord)
 }
 
-async function loadOpenMedicationAlerts(supabase: TypedSupabaseClient, careHomeId: string) {
+export async function loadOpenMedicationAlerts(supabase: TypedSupabaseClient, careHomeId: string) {
   const { data, error } = await supabase
     .from('medication_alerts')
     .select('*')
@@ -424,7 +424,7 @@ function mapRecentResidentRowToActivity(row: ResidentActivityRow): ResidentActiv
   }
 }
 
-function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMember | null {
+export function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMember | null {
   if (!value || typeof value !== 'object') {
     return null
   }
@@ -444,7 +444,7 @@ function normalizeDashboardCareTeamMember(value: unknown): DashboardCareTeamMemb
   }
 }
 
-function buildRecentActivityItems({
+export function buildRecentActivityItems({
   residentNameById,
   recentResidents,
   tasks,
@@ -586,7 +586,7 @@ function buildRecentActivityItems({
     .slice(0, 6)
 }
 
-function buildCareAttentionItems({
+export function buildCareAttentionItems({
   residentNameById,
   openTasks,
   openIncidents,
@@ -654,7 +654,7 @@ function buildCareAttentionItems({
     .slice(0, 3)
 }
 
-function buildOperationalQueueItems({
+export function buildOperationalQueueItems({
   residentNameById,
   openTasks,
   openIncidents,

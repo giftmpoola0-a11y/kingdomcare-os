@@ -1,6 +1,11 @@
 export const CHROME_DATA_REFRESH_EVENT = 'kingdomcare:chrome-data-refresh'
 
-export type ChromeDataRefreshSource = 'incidents' | 'medication-alerts' | 'tasks'
+export type ChromeDataRefreshSource =
+  | 'incidents'
+  | 'medication-alerts'
+  | 'residents'
+  | 'shift-reports'
+  | 'tasks'
 
 export interface ChromeDataRefreshDetail {
   source: ChromeDataRefreshSource
@@ -18,4 +23,3 @@ export function dispatchChromeDataRefresh(detail: ChromeDataRefreshDetail) {
     }),
   )
 }
-
