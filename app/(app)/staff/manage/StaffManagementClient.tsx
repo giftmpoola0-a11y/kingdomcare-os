@@ -3,7 +3,18 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { dashboardFont } from '@/app/lib/dashboard-font'
 import { getCurrentUserAccess, normalizeMembershipRole, type MembershipRole } from '@/app/lib/supabase/access'
 import { getSupabaseBrowserClient } from '@/app/lib/supabase/client'
 
@@ -43,6 +54,7 @@ export default function StaffManagementClient() {
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [pageState, setPageState] = useState<StaffPageState | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<MembershipRole>('caregiver')
 
@@ -213,13 +225,19 @@ export default function StaffManagementClient() {
     }
   }
 
-  async function handleRemoveMember(member: StaffMember) {
+  function handleRemoveMember(member: StaffMember) {
     if (!pageState) return
 
-    if (!window.confirm('Remove this staff member from the care home?')) {
-      return
-    }
+    setMessage('')
+    setErrorMessage('')
+    setRemoveTarget(member)
+  }
 
+  async function handleConfirmRemoveMember() {
+    if (!pageState || !removeTarget) return
+
+    const member = removeTarget
+    setRemoveTarget(null)
     setActionKey(`remove:${member.membershipId}`)
     setMessage('')
     setErrorMessage('')
@@ -465,7 +483,7 @@ export default function StaffManagementClient() {
 
                                 <button
                                   type="button"
-                                  onClick={() => void handleRemoveMember(member)}
+                                  onClick={() => handleRemoveMember(member)}
                                   disabled={disableRemove || removeActionBusy}
                                   className="inline-flex h-11 items-center justify-center rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
@@ -492,6 +510,52 @@ export default function StaffManagementClient() {
               )}
             </>
           )}
+          <AlertDialog
+            open={Boolean(removeTarget)}
+            onOpenChange={(open) => {
+              if (open || actionKey?.startsWith('remove:')) return
+              setRemoveTarget(null)
+              setErrorMessage('')
+            }}
+          >
+            <AlertDialogContent
+              className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg border-white/10 bg-card/95 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+            >
+              <AlertDialogHeader>
+                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+                  <Trash2 className="size-3.5" />
+                  Remove staff member
+                </div>
+                <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Remove staff member?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                  <span className="block">
+                    This will remove the staff member from this care home. Historical records remain preserved.
+                  </span>
+                  <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    {removeTarget?.fullName || removeTarget?.email || 'Unnamed staff member'}
+                  </span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={actionKey === `remove:${removeTarget?.membershipId ?? ''}`}
+                  className="rounded-xl border border-white/10 bg-background/75 text-foreground hover:bg-accent/80"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={actionKey === `remove:${removeTarget?.membershipId ?? ''}`}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    void handleConfirmRemoveMember()
+                  }}
+                  className="rounded-xl border border-rose-400/30 bg-rose-500/18 text-rose-100 transition-colors hover:bg-rose-500/28"
+                >
+                  {actionKey === `remove:${removeTarget?.membershipId ?? ''}` ? 'Removing...' : 'Remove staff member'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
     </main>
   )
 }
@@ -563,6 +627,7 @@ function StatusPill({
     </span>
   )
 }
+
 
 
 

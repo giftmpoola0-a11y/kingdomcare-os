@@ -110,6 +110,7 @@ function ResidentPhotoField({ resident }: { resident: ResidentListRecord }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
 
   function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -140,9 +141,13 @@ function ResidentPhotoField({ resident }: { resident: ResidentListRecord }) {
   }
 
   function handleRemove() {
-    if (!window.confirm("Remove this resident's photo?")) return
-
     setError('')
+    setConfirmRemoveOpen(true)
+  }
+
+  function handleConfirmRemove() {
+    setError('')
+    setConfirmRemoveOpen(false)
     startTransition(async () => {
       const result = await removeResidentPhotoAction(resident.id)
       if (!result.success) {
@@ -154,58 +159,91 @@ function ResidentPhotoField({ resident }: { resident: ResidentListRecord }) {
   }
 
   return (
-    <div className="space-y-1.5">
-      <p className="block text-sm font-semibold text-foreground">Resident Photo</p>
-      <div className="flex items-center gap-4">
-        <div
-          className={cn(
-            'relative h-16 w-16 shrink-0 overflow-hidden rounded-xl',
-            !resident.photoUrl && `flex items-center justify-center text-sm font-semibold ${avatarColor(resident.id)}`,
-          )}
-        >
-          {resident.photoUrl ? (
-            <Image src={resident.photoUrl} alt="" fill sizes="64px" className="object-cover" />
-          ) : (
-            getInitials(resident.name)
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleFileSelected}
-          />
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+    <>
+      <div className="space-y-1.5">
+        <p className="block text-sm font-semibold text-foreground">Resident Photo</p>
+        <div className="flex items-center gap-4">
+          <div
+            className={cn(
+              'relative h-16 w-16 shrink-0 overflow-hidden rounded-xl',
+              !resident.photoUrl && `flex items-center justify-center text-sm font-semibold ${avatarColor(resident.id)}`,
+            )}
           >
-            <ImagePlus className="size-3.5" />
-            {resident.photoUrl ? 'Replace Photo' : 'Upload Photo'}
-          </button>
-          {resident.photoUrl && (
+            {resident.photoUrl ? (
+              <Image src={resident.photoUrl} alt="" fill sizes="64px" className="object-cover" />
+            ) : (
+              getInitials(resident.name)
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
             <button
               type="button"
               disabled={isPending}
-              onClick={handleRemove}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-accent disabled:opacity-60"
             >
-              <Trash2 className="size-3.5" />
-              Remove
+              <ImagePlus className="size-3.5" />
+              {resident.photoUrl ? 'Replace Photo' : 'Upload Photo'}
             </button>
-          )}
+            {resident.photoUrl && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleRemove}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
+              >
+                <Trash2 className="size-3.5" />
+                Remove
+              </button>
+            )}
+          </div>
         </div>
+        {error && (
+          <p role="alert" className="text-xs font-medium text-rose-300">
+            {error}
+          </p>
+        )}
       </div>
-      {error && (
-        <p role="alert" className="text-xs font-medium text-rose-300">
-          {error}
-        </p>
-      )}
-    </div>
+
+      <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+        <AlertDialogContent
+          className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg border-white/10 bg-card/95 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Remove resident photo?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
+              This removes the current resident photo from active views. You can upload a new photo at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isPending}
+              className="rounded-xl border border-white/10 bg-background/75 text-foreground hover:bg-accent/80"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending}
+              onClick={(event) => {
+                event.preventDefault()
+                handleConfirmRemove()
+              }}
+              className="rounded-xl border border-rose-400/30 bg-rose-500/18 text-rose-100 transition-colors hover:bg-rose-500/28"
+            >
+              Remove photo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
@@ -302,6 +340,7 @@ export default function ResidentsClient({
   const [actionError, setActionError] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ResidentListRecord | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const [archiveTarget, setArchiveTarget] = useState<ResidentListRecord | null>(null)
   const [form, setForm] = useState({
     name: '',
     age: '',
@@ -636,12 +675,19 @@ export default function ResidentsClient({
     })
   }
 
-  function handleArchiveResident(id: string) {
-    if (!window.confirm('Archive this resident? Historical records will remain available.')) return
-
+  function handleArchiveResident(resident: ResidentListRecord) {
     setActionError('')
+    setArchiveTarget(resident)
+  }
+
+  function handleConfirmArchiveResident() {
+    if (!archiveTarget) return
+
+    const targetId = archiveTarget.id
+    setActionError('')
+    setArchiveTarget(null)
     startTransition(async () => {
-      const result = await archiveResidentAction(id)
+      const result = await archiveResidentAction(targetId)
       if (!result.success) {
         setActionError(result.error)
         return
@@ -1068,7 +1114,7 @@ export default function ResidentsClient({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => handleArchiveResident(resident.id)}
+                          onClick={() => handleArchiveResident(resident)}
                           className="inline-flex items-center gap-2 rounded-xl bg-amber-500/15 px-4 py-2.5 text-xs font-semibold text-amber-300 ring-1 ring-amber-400/35 transition-colors hover:bg-amber-500/20 disabled:opacity-60"
                         >
                           Archive
@@ -1092,6 +1138,48 @@ export default function ResidentsClient({
               })}
             </div>
           )}
+
+          <AlertDialog
+            open={Boolean(archiveTarget)}
+            onOpenChange={(open) => {
+              if (open || isPending) return
+              setArchiveTarget(null)
+            }}
+          >
+            <AlertDialogContent
+              className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg border-white/10 bg-card/95 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Archive resident?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                  <span className="block">
+                    This will remove the resident from the active list while preserving their records for history and reporting.
+                  </span>
+                  <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    {archiveTarget?.name}
+                  </span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  disabled={isPending}
+                  className="rounded-xl border border-white/10 bg-background/75 text-foreground hover:bg-accent/80"
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={isPending}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    handleConfirmArchiveResident()
+                  }}
+                  className="rounded-xl border border-rose-400/30 bg-rose-500/18 text-rose-100 transition-colors hover:bg-rose-500/28"
+                >
+                  Archive resident
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <AlertDialog
             open={Boolean(deleteTarget)}
@@ -1154,6 +1242,9 @@ export default function ResidentsClient({
     </main>
   )
 }
+
+
+
 
 
 

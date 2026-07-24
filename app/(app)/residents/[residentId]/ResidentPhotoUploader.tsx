@@ -4,6 +4,17 @@ import Image from 'next/image'
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ImagePlus, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { dashboardFont } from '@/app/lib/dashboard-font'
 import { removeResidentPhotoAction, uploadResidentPhotoAction } from '../actions'
 
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -34,6 +45,7 @@ export function ResidentPhotoUploader({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
 
   function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -64,9 +76,12 @@ export function ResidentPhotoUploader({
   }
 
   function handleRemove() {
-    if (!window.confirm("Remove this resident's photo?")) return
+    setConfirmRemoveOpen(true)
+  }
 
+  function handleConfirmRemove() {
     setError('')
+    setConfirmRemoveOpen(false)
     startTransition(async () => {
       const result = await removeResidentPhotoAction(residentId)
       if (!result.success) {
@@ -134,6 +149,47 @@ export function ResidentPhotoUploader({
           )}
         </div>
       )}
+
+      <AlertDialog open={confirmRemoveOpen} onOpenChange={(open) => {
+        if (open || isPending) return
+        setConfirmRemoveOpen(false)
+      }}>
+        <AlertDialogContent
+          className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+        >
+          <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+              <Trash2 className="size-3.5" />
+              Remove resident photo
+            </div>
+            <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Remove resident photo?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <span className="block">This removes the current resident photo from the profile until a new one is uploaded.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                disabled={isPending}
+                className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isPending}
+                onClick={(event) => {
+                  event.preventDefault()
+                  handleConfirmRemove()
+                }}
+                className="rounded-xl border border-rose-400/30 bg-rose-500/18 px-5 py-2.5 text-sm font-semibold text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] transition-colors hover:bg-rose-500/28 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? 'Removing...' : 'Remove photo'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

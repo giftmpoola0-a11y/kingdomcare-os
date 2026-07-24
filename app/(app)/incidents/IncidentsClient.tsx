@@ -11,6 +11,17 @@ import {
   ShieldAlert,
   Trash2,
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { dashboardFont } from '@/app/lib/dashboard-font'
 import type { IncidentRecord, IncidentSeverity, IncidentStatus } from '@/app/lib/supabase/incidents'
 import type { ResidentListItem } from '@/app/lib/supabase/residents'
 import { cn } from '@/lib/utils'
@@ -38,6 +49,7 @@ export default function IncidentsClient({
   const [filter, setFilter] = useState<IncidentFilter>('Open')
   const [actionError, setActionError] = useState('')
   const [incidents, setIncidents] = useState(initialIncidents)
+  const [archiveTarget, setArchiveTarget] = useState<IncidentRecord | null>(null)
   const [syncedInitialIncidents, setSyncedInitialIncidents] = useState(initialIncidents)
 
   if (initialIncidents !== syncedInitialIncidents) {
@@ -86,12 +98,22 @@ export default function IncidentsClient({
     })
   }
 
-  function handleDelete(id: string) {
-    if (!window.confirm('Delete this incident record?')) return
-
+  function handleDelete(incident: IncidentRecord) {
     setActionError('')
+    setArchiveTarget(incident)
+  }
+
+  function handleConfirmArchiveIncident() {
+    if (!archiveTarget) {
+      return
+    }
+
+    const targetId = archiveTarget.id
+    setActionError('')
+    setArchiveTarget(null)
+
     startTransition(async () => {
-      const result = await deleteIncidentAction(id)
+      const result = await deleteIncidentAction(targetId)
       if (!result.success) {
         setActionError(result.error)
         return
@@ -250,7 +272,7 @@ export default function IncidentsClient({
                               <button
                                 type="button"
                                 disabled={isPending}
-                                onClick={() => handleDelete(incident.id)}
+                                onClick={() => handleDelete(incident)}
                                 className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-300 ring-1 ring-rose-400/35 transition-colors hover:bg-rose-500/20 disabled:opacity-60"
                               >
                                 <Trash2 className="size-3.5" />
@@ -279,10 +301,101 @@ export default function IncidentsClient({
               )}
             </section>
           </div>
+      <AlertDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => {
+          if (open || isPending) return
+          setArchiveTarget(null)
+        }}
+      >
+        <AlertDialogContent
+          className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+        >
+          <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+              <Trash2 className="size-3.5" />
+              Archive incident
+            </div>
+            <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Archive incident?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <span className="block">This incident will be removed from the active incident list while keeping the record archived on the server.</span>
+              <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                {archiveTarget ? `${activeResidents.find((resident) => resident.id === archiveTarget.residentId)?.name ?? 'General incident'} - ${archiveTarget.incidentType}` : ''}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                disabled={isPending}
+                className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isPending}
+                onClick={(event) => {
+                  event.preventDefault()
+                  handleConfirmArchiveIncident()
+                }}
+                className="rounded-xl border border-rose-400/30 bg-rose-500/18 px-5 py-2.5 text-sm font-semibold text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] transition-colors hover:bg-rose-500/28 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? 'Archiving...' : 'Archive incident'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => {
+          if (open || isPending) return
+          setArchiveTarget(null)
+        }}
+      >
+        <AlertDialogContent
+          className={`${dashboardFont.variable} v0-dashboard-theme dark max-w-lg gap-0 overflow-hidden border-white/10 bg-card/95 p-0 font-sans shadow-[0_28px_90px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.05)]`}
+        >
+          <AlertDialogHeader className="gap-3 p-6 pb-5 sm:p-7 sm:pb-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-rose-500/12 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200 ring-1 ring-rose-400/25">
+              <Trash2 className="size-3.5" />
+              Archive incident
+            </div>
+            <AlertDialogTitle className="text-2xl tracking-tight text-foreground">Archive incident?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <span className="block">This incident will be removed from the active incident list while keeping the record archived on the server.</span>
+              <span className="block rounded-2xl border border-white/10 bg-background/55 px-4 py-3 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                {archiveTarget ? `${activeResidents.find((resident) => resident.id === archiveTarget.residentId)?.name ?? 'General incident'} - ${archiveTarget.incidentType}` : ''}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="border-t border-white/10 bg-background/35 px-6 py-5 sm:px-7">
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                disabled={isPending}
+                className="rounded-xl border border-white/10 bg-background/75 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isPending}
+                onClick={(event) => {
+                  event.preventDefault()
+                  handleConfirmArchiveIncident()
+                }}
+                className="rounded-xl border border-rose-400/30 bg-rose-500/18 px-5 py-2.5 text-sm font-semibold text-rose-100 shadow-[0_12px_28px_rgba(244,63,94,0.18)] transition-colors hover:bg-rose-500/28 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isPending ? 'Archiving...' : 'Archive incident'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }
-
 function SummaryCard({
   label,
   value,
@@ -416,6 +529,8 @@ function formatDateTime(raw: string): string {
     minute: '2-digit',
   })
 }
+
+
 
 
 
